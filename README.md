@@ -4,9 +4,9 @@ This python module is a revival and update of Runar Tenfjord's NURBS toolbox, wh
 is a port of Mark Spink's SCILAB/MATLAB tolbox to python with help of numpy.
 
 #### Dependency
-Python 2.0 or above  
+Python 2.5 or above  
 NumPy  
-Dislin -> optional but recomended  
+matplotlib
 PyOpenGL -> optional  
 
 #### Installation
@@ -19,3 +19,5 @@ so I suppose that means it has to stay that way.
 Originally by: Runar Tenfjord, runten@netcom.no  
 Minor updates to work with NumPy by Alex Wiltschko  
 
+Work by Sebastian Eiser:
+I'm removing the dependency on dislin and replacing it with matplotlib. 

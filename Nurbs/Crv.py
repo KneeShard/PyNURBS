@@ -76,7 +76,7 @@ class Crv:
 	NOTE: No knot multiplicity will be increased beyond the order of the spline"""
         if len(uknots):
             uknots = np.sort(np.asarray(uknots, np.float))
-            if np.less(uknots, 0.) or np.greater(uknots, 1.):
+            if np.any(uknots < 0.) or np.any(uknots > 1.):
                 raise NURBSError, 'NURBS curve parameter out of range [0,1]'
             self.cntrl, self.uknots = bspkntins(self.degree, self.cntrl, self.uknots, uknots)
 

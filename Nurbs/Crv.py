@@ -3,7 +3,7 @@ from _Bas import bspkntins, bspdegelev, bspbezdecom, bspeval # Lowlevel Nurbs fu
 from Util import  scale, translate, rotz
 
 dependencies = '''This module requires:
-	Numeric Python
+	Numeric Python (NumPy)
 '''
 
 try:
@@ -111,7 +111,8 @@ class Crv:
     def pnt4D(self, ut):
         "Evaluate parametric point[s] and return 4D homogeneous coordinates"
         ut = np.asarray(ut, np.float)
-        if np.less(ut, 0.) or np.greater(ut, 1.):
+		
+        if np.any(ut < 0.) or np.any(ut > 1.):
             raise NURBSError, 'NURBS curve parameter out of range [0,1]'
         return bspeval(self.degree, self.cntrl, self.uknots, ut)
                 
@@ -120,12 +121,14 @@ class Crv:
 	n = number of subdivisions.
 	Depends on the dislin plotting library."""
         try:
-            import dislin
+			from mpl_toolkits.mplot3d import axes3d
+			import matplotlib as mpl
+			import matplotlib.pyplot as plt
         except ImportError, value:
-            print 'dislin plotting library not available'
+            print 'matplotlib plotting library not available'
             return
 
-        pnts = self.pnt3D(np.arange(n + 1, typecode = np.float)/n)
+        pnts = self.pnt3D(np.arange(n + 1, dtype = np.float64)/n)
         knots = self.pnt3D(self.uknots)
 
         maxminx = np.sort(self.cntrl[0,:]/self.cntrl[3,:])
@@ -146,28 +149,53 @@ class Crv:
         if minz == maxz:
             minz -= 1.
             maxz += 1.
+			
+        fig = plt.figure()
             
-        dislin.metafl('cons')
-        dislin.disini()
-        dislin.hwfont()
-        dislin.pagera()
-        dislin.name('X-axis', 'X')
-        dislin.name('Y-axis', 'Y')
-        dislin.name('Z-axis', 'Z')
-        dislin.graf3d(minx, maxx, 0 , abs((maxx-minx)/4.),
-                      miny, maxy, 0 , abs((maxy-miny)/4.),
-                      minz, maxz, 0 , abs((maxz-minz)/4.))
-        dislin.color('yellow')
-        dislin.curv3d(pnts[0,:], pnts[1,:], pnts[2,:], n+1)
-        dislin.color('red')
-        dislin.dashm()
-        dislin.curv3d(self.cntrl[0,:]/self.cntrl[3,:], self.cntrl[1,:]/self.cntrl[3,:],
-                      self.cntrl[2,:]/self.cntrl[3,:], self.cntrl.shape[1])
-        dislin.color('white')
-        dislin.incmrk(-1)
-        dislin.marker(8)
-        dislin.curv3d(knots[0,:], knots[1,:], knots[2,:], knots.shape[1])
-        dislin.disfin()
+        
+        ax = fig.add_subplot(111, projection='3d')
+        # TODO
+        plt.title("b-spline Curve. n={}, p={}".format(1,-1 ))
+        plt.xlabel('x')
+        plt.ylabel('y')
+        # FIXME plt.zlabel('z')
+		# actual nurbs
+        plt.plot(pnts[0,:], pnts[1,:], pnts[2,:], label='parametric bspline')
+
+		# control points/polygon
+        plt.plot(self.cntrl[0,:]/self.cntrl[3,:], self.cntrl[1,:]/self.cntrl[3,:],
+                      self.cntrl[2,:]/self.cntrl[3,:], 'ro-', label='control pts', linewidth=.5)
+
+        plt.plot(knots[0,:], knots[1,:], knots[2,:], 'y+', markersize = 10, markeredgewidth=1.8, label="knots")
+        plt.legend(fontsize='x-small',bbox_to_anchor=(0.91, 1), loc=2, borderaxespad=-1.)
+        plt.savefig("bspline-curve-R3.png")
+        #plt.legend(fontsize='x-small',bbox_to_anchor=(0.91, 1), loc=2, borderaxespad=-1.)
+        # plt.legend(fontsize='x-small',)
+        # plt.show() # stops here
+        plt.close()
+
+        # dislin.metafl('cons')
+        # dislin.disini()
+        # dislin.hwfont()
+        # dislin.pagera()
+        # dislin.name('X-axis', 'X')
+        # dislin.name('Y-axis', 'Y')
+        # dislin.name('Z-axis', 'Z')
+        # dislin.graf3d(minx, maxx, 0 , abs((maxx-minx)/4.),
+        #               miny, maxy, 0 , abs((maxy-miny)/4.),
+        #               minz, maxz, 0 , abs((maxz-minz)/4.))
+        # dislin.color('yellow')
+			# se: changes to plot
+        # dislin.curv3d(pnts[0,:], pnts[1,:], pnts[2,:], n+1)
+        # dislin.color('red')
+        # dislin.dashm()
+        # dislin.curv3d(self.cntrl[0,:]/self.cntrl[3,:], self.cntrl[1,:]/self.cntrl[3,:],
+        #               self.cntrl[2,:]/self.cntrl[3,:], self.cntrl.shape[1])
+        # dislin.color('white')
+        # dislin.incmrk(-1)
+        # dislin.marker(8)
+        # dislin.curv3d(knots[0,:], knots[1,:], knots[2,:], knots.shape[1])
+        # dislin.disfin()
 
     def __call__(self, *args):
         return self.pnt3D(args[0])

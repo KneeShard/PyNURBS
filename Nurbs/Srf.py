@@ -277,15 +277,18 @@ class Srf:
         return val
             
     def plot(self, n = 50, iso = 8):
-        """A simple plotting function based on dislin for debugging purpose.
+        """A simple plotting function based on matplotlib for debugging purpose.
 	n = number of subdivisions. iso = number of iso line to plot in each dir.
 	TODO: plot ctrl poins and knots."""
         try:
-            import dislin
+			from mpl_toolkits.mplot3d import axes3d
+			import matplotlib as mpl
+			import matplotlib.pyplot as plt
         except ImportError, value:
-            print 'dislin plotting library not available'
+            print 'matplotlib plotting library not available'
             return
 
+		# TODO clean (most of this isn't necessary with matplotlib)
         maxminx = np.sort(np.ravel(self.cntrl[0,:,:])/np.ravel(self.cntrl[3,:,:]))
         minx = maxminx[0]
         maxx = maxminx[-1]
@@ -306,43 +309,97 @@ class Srf:
         if minz == maxz:
             minz -= 1.
             maxz += 1.
-                
-        dislin.metafl('cons')
-        dislin.disini()
-        dislin.hwfont()
-        dislin.pagera()
-        dislin.name('X-axis', 'X')
-        dislin.name('Y-axis', 'Y')
-        dislin.name('Z-axis', 'Z')
-        dislin.graf3d(minx, maxx, 0 , abs((maxx-minx)/4.),
-                      miny, maxy, 0 , abs((maxy-miny)/4.),
-                      minz, maxz, 0 , abs((maxz-minz)/4.))
-            
-        dislin.color('yellow')
-        pnts0 = self.pnt3D([np.arange(n + 1, typecode = np.float)/n,
+		# overlap!!?
+        pnts0 = self.pnt3D([np.arange(n + 1, dtype = np.float64)/n,
                             np.zeros(n + 1,np.float)])
-        pnts1 = self.pnt3D([np.arange(n + 1, typecode = np.float)/n,
+        pnts1 = self.pnt3D([np.arange(n + 1, dtype = np.float64)/n,
                             np.ones(n + 1,np.float)])
         pnts2 = self.pnt3D([np.zeros(n + 1,np.float),
-                            np.arange(n + 1, typecode = np.float)/n])
+                            np.arange(n + 1, dtype = np.float64)/n])
         pnts3 = self.pnt3D([np.ones(n + 1,np.float),
-                            np.arange(n + 1, typecode = np.float)/n])
-        dislin.curv3d(pnts0[0,:], pnts0[1,:], pnts0[2,:], n+1)
-        dislin.curv3d(pnts1[0,:], pnts1[1,:], pnts1[2,:], n+1)
-        dislin.curv3d(pnts2[0,:], pnts2[1,:], pnts2[2,:], n+1)
-        dislin.curv3d(pnts3[0,:], pnts3[1,:], pnts3[2,:], n+1)
+                            np.arange(n + 1, dtype = np.float64)/n])
+
+        fig = plt.figure()
             
-        dislin.color('red')
+        
+        ax = fig.add_subplot(111, projection='3d')
+        # TODO
+        plt.title("b-spline Surface. n={}, p={}, m={}, q={}".format(1,-1, 1, -1 ))
+        plt.xlabel('x')
+        plt.ylabel('y')
+        # FIXME plt.zlabel('z')
+		# -- # actual nurbs
+        # -- plt.plot(pnts[0,:], pnts[1,:], pnts[2,:], label='parametric bspline')
+
+		# FIXME: next line plots nothing?
+        plt.plot(pnts0[0,:], pnts0[1,:], pnts0[2,:], label='-0')
+		# first/last? y direction iso line
+        plt.plot(pnts1[0,:], pnts1[1,:], pnts1[2,:], label='-1')
+		# first/ x direction line
+        plt.plot(pnts2[0,:], pnts2[1,:], pnts2[2,:], label='-2')
+		# FIXME: overlapping line?
+        plt.plot(pnts3[0,:], pnts3[1,:], pnts3[2,:], label='-3')
+
+		# -- # control points/polygon
+        # -- plt.plot(self.cntrl[0,:]/self.cntrl[3,:], self.cntrl[1,:]/self.cntrl[3,:],
+        # --               self.cntrl[2,:]/self.cntrl[3,:], 'ro-', label='control pts', linewidth=.5)
+
+        # -- plt.plot(knots[0,:], knots[1,:], knots[2,:], 'y+', markersize = 10, markeredgewidth=1.8, label="knots")
+
+        # future (auto):
+		# ax.plot_surface(s[:,:,0], s[:,:,1], s[:,:,2],rstride=1,cstride=1,linewidth=0.000)
+		# manual:
         step = 1./iso
         for uv in np.arange(step, 1., step):
-            pnts = self.pnt3D([np.arange(n + 1, typecode = np.float)/n,
-                               np.zeros(n + 1,np.float) + uv])
-            dislin.curv3d(pnts[0,:], pnts[1,:], pnts[2,:], n+1)
-            pnts = self.pnt3D([np.zeros(n + 1,np.float) + uv,
-                               np.arange(n + 1, typecode = np.float)/n])
-            dislin.curv3d(pnts[0,:], pnts[1,:], pnts[2,:], n+1)
-            
-        dislin.disfin()
+            pnts = self.pnt3D([np.arange(n + 1, dtype = np.float64)/n,
+                               np.zeros(n + 1,np.float64) + uv])
+			# iso lines in x-direction
+            plt.plot(pnts[0,:], pnts[1,:], pnts[2,:], 'b-', label='a')
+            pnts = self.pnt3D([np.zeros(n + 1,np.float64) + uv,
+                               np.arange(n + 1, dtype = np.float64)/n])
+            plt.plot(pnts[0,:], pnts[1,:], pnts[2,:], 'r-', label='b')
+
+        plt.legend(fontsize='x-small',bbox_to_anchor=(0.91, 1), loc=2, borderaxespad=-1.)
+        plt.savefig("bspline-surf-R3.png")
+        # plt.show() # stops here
+        plt.close()
+                
+        # dislin- dislin.metafl('cons')
+        # dislin- dislin.disini()
+        # dislin- dislin.hwfont()
+        # dislin- dislin.pagera()
+        # dislin- dislin.name('X-axis', 'X')
+        # dislin- dislin.name('Y-axis', 'Y')
+        # dislin- dislin.name('Z-axis', 'Z')
+        # dislin- dislin.graf3d(minx, maxx, 0 , abs((maxx-minx)/4.),
+        # dislin-               miny, maxy, 0 , abs((maxy-miny)/4.),
+        # dislin-               minz, maxz, 0 , abs((maxz-minz)/4.))
+        # dislin-     
+        # dislin- dislin.color('yellow')
+        # dislin- pnts0 = self.pnt3D([np.arange(n + 1, typecode = np.float)/n,
+        # dislin-                     np.zeros(n + 1,np.float)])
+        # dislin- pnts1 = self.pnt3D([np.arange(n + 1, typecode = np.float)/n,
+        # dislin-                     np.ones(n + 1,np.float)])
+        # dislin- pnts2 = self.pnt3D([np.zeros(n + 1,np.float),
+        # dislin-                     np.arange(n + 1, typecode = np.float)/n])
+        # dislin- pnts3 = self.pnt3D([np.ones(n + 1,np.float),
+        # dislin-                     np.arange(n + 1, typecode = np.float)/n])
+        # dislin- dislin.curv3d(pnts0[0,:], pnts0[1,:], pnts0[2,:], n+1)
+        # dislin- dislin.curv3d(pnts1[0,:], pnts1[1,:], pnts1[2,:], n+1)
+        # dislin- dislin.curv3d(pnts2[0,:], pnts2[1,:], pnts2[2,:], n+1)
+        # dislin- dislin.curv3d(pnts3[0,:], pnts3[1,:], pnts3[2,:], n+1)
+        # dislin-     
+        # dislin- dislin.color('red')
+        # dislin- step = 1./iso
+        # dislin- for uv in np.arange(step, 1., step):
+        # dislin-     pnts = self.pnt3D([np.arange(n + 1, typecode = np.float)/n,
+        # dislin-                        np.zeros(n + 1,np.float) + uv])
+        # dislin-     dislin.curv3d(pnts[0,:], pnts[1,:], pnts[2,:], n+1)
+        # dislin-     pnts = self.pnt3D([np.zeros(n + 1,np.float) + uv,
+        # dislin-                        np.arange(n + 1, typecode = np.float)/n])
+        # dislin-     dislin.curv3d(pnts[0,:], pnts[1,:], pnts[2,:], n+1)
+        # dislin-     
+        # dislin- dislin.disfin()
 
     def __call__(self, *args):
         return self.pnt3D(args[0])

@@ -4,10 +4,10 @@ This python module is a revival and update of Runar Tenfjord's NURBS toolbox, wh
 is a port of Mark Spink's SCILAB/MATLAB tolbox to python with help of numpy.
 
 #### Dependency
-* Python 2.5 or above  
-* NumPy  
-* matplotlib  
-* PyOpenGL -> optional  
+* Python 2.4 or above (not Python 3.*)
+* NumPy 1.6
+* matplotlib 1.1
+* PyOpenGL -> optional
 
 #### Installation
 Just run  ```python setup.py install```  

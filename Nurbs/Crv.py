@@ -119,7 +119,7 @@ class Crv:
     def plot(self, n = 25):
         """A simple plotting function for debugging purpose
 	n = number of subdivisions.
-	Depends on the dislin plotting library."""
+	Depends on the matplotlib plotting library."""
         try:
 			from mpl_toolkits.mplot3d import axes3d
 			import matplotlib as mpl
@@ -131,6 +131,7 @@ class Crv:
         pnts = self.pnt3D(np.arange(n + 1, dtype = np.float64)/n)
         knots = self.pnt3D(self.uknots)
 
+		# TODO clean (most of this isn't necessary with matplotlib)
         maxminx = np.sort(self.cntrl[0,:]/self.cntrl[3,:])
         minx = maxminx[0]
         maxx = maxminx[-1]
@@ -169,8 +170,6 @@ class Crv:
         plt.plot(knots[0,:], knots[1,:], knots[2,:], 'y+', markersize = 10, markeredgewidth=1.8, label="knots")
         plt.legend(fontsize='x-small',bbox_to_anchor=(0.91, 1), loc=2, borderaxespad=-1.)
         plt.savefig("bspline-curve-R3.png")
-        #plt.legend(fontsize='x-small',bbox_to_anchor=(0.91, 1), loc=2, borderaxespad=-1.)
-        # plt.legend(fontsize='x-small',)
         # plt.show() # stops here
         plt.close()
 

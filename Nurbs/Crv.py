@@ -44,6 +44,7 @@ class Crv:
         uknots = np.sort(np.asarray(uknots, np.float))
         nku = uknots.shape[0]
         uknots = (uknots - uknots[0])/(uknots[-1] - uknots[0])
+        print "knot sequence: " + str(uknots)
         if uknots[0] == uknots[-1]:
             raise NURBSError, 'Illegal uknots sequence'
         self.uknots = uknots

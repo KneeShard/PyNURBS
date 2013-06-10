@@ -133,10 +133,29 @@ static PyObject * _Bas_bincoeff(PyObject *self, PyObject *args)
 //   s - knot span
 //
 // Algorithm A2.1 from 'The NURBS BOOK' pg68.
+
+static char findspan__doc__[] =
+"// Find the knot span of the parametric point u. \n\
+//\n\
+// INPUT:\n\
+//\n\
+//   n - number of control points - 1\n\
+//   p - spline degree       \n\
+//   u - parametric point    \n\
+//   U - knot sequence\n\
+//\n\
+// RETURN:\n\
+//\n\
+//   s - knot span\n\
+//\n\
+// Algorithm A2.1 from 'The NURBS BOOK' pg68.\n\
+ \n";
+
 static int _findspan(int n, int p, double u, double *U)
 {
   int low, high, mid;
    
+  //printf ("n=%d, p=%d, u=%g\n", n, p ,u);
   // special case
   if (u == U[n+1]) return(n);
     
@@ -150,10 +169,27 @@ static int _findspan(int n, int p, double u, double *U)
       high = mid;
     else
       low = mid;
-    mid = (low + high) / 2;
+    mid = (low + high) / 2; // 
   }  
 
   return(mid);
+}
+
+static PyObject * _Bas_findspan(PyObject *self, PyObject *args)
+{
+	int n, p;
+	double u, ret;
+	PyObject *input_U;
+	PyArrayObject  *U;
+	if(!PyArg_ParseTuple(args, "iidO", &n, &p, &u, &input_U))
+		return NULL;
+
+	U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, PyArray_DOUBLE, 1, 1);
+	if(U == NULL)
+		return NULL;
+
+	ret = _findspan(n, p, u, (double *)U->data);
+	return Py_BuildValue("i", (int) ret);
 }
 
 // Basis Function. 
@@ -170,6 +206,22 @@ static int _findspan(int n, int p, double u, double *U)
 //   N - Basis functions vector[p+1]
 //
 // Algorithm A2.2 from 'The NURBS BOOK' pg70.
+//
+static char basisfuns__doc__[] =
+"Compute basis functions which are not zero for given u.\n\
+\n\
+ INPUT:\n\
+   i - knot span  ( from FindSpan() )\n\
+   u - parametric point\n\
+   p - spline degree\n\
+   U - knot sequence\n\
+\n\
+ OUTPUT:\n\
+\n\
+   N - Basis functions vector[p+1]\n\
+\n\
+ Algorithm A2.2 from 'The NURBS BOOK' pg70.\n\
+ \n";
 
 static void _basisfuns(int i, double u, int p, double *U, double *N)
 {
@@ -180,6 +232,7 @@ static void _basisfuns(int i, double u, int p, double *U, double *N)
   double *left  = (double*) malloc((p+1)*sizeof(double));
   double *right = (double*) malloc((p+1)*sizeof(double));
   
+  // printf("i=%d\n",i);
   N[0] = 1.0;
   for (j = 1; j <= p; j++)
   {
@@ -197,8 +250,44 @@ static void _basisfuns(int i, double u, int p, double *U, double *N)
     N[j] = saved;
   }
   
+//   printf("-- in N[0]=%g\n",N[0]);
+//   printf("-- in N[1]=%g\n",N[1]);
+//   printf("-- in N[2]=%g\n",N[2]);
   free(left);
   free(right);
+}
+
+static PyObject * _Bas_basisfuns(PyObject *self, PyObject *args)
+{
+	int i, p, ret;
+	double u;
+	int dim[2];
+	PyObject *input_U;
+	PyArrayObject *N, *U;
+
+
+	ret=-1;
+    ret = PyArg_ParseTuple(args, "iOdi", &i, &input_U, &u, &p);
+	if(!ret)
+	{
+		//printf("i=%d, u=%g, p=%d, ret=%d\n", i, u, p);
+		return NULL;
+	}
+
+	U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, PyArray_DOUBLE, 1, 1);
+	if(U == NULL)
+		return NULL;
+
+	dim[0] = p+1;
+	dim[1] = 0; 
+	//  N array is p+1 in size
+	N = (PyArrayObject *) PyArray_FromDims(1, dim, PyArray_DOUBLE);
+	_basisfuns(i, u, p, (double *)U->data, (double *)N->data);
+	// printf("*N->data[0]=%g \n", (double *)N->data[0]);
+	// printf("*N->data[1]=%g \n", (double *)N->data[1]);
+	//return (PyObject *)N;
+	// return Py_BuildValue("O", (PyObject *)N );
+	return PyArray_Return(N);
 }
 
 static char bspeval__doc__[] =
@@ -280,6 +369,24 @@ static PyObject * _Bas_bspeval(PyObject *self, PyObject *args)
 	return PyArray_Return(pnt);
 }
 
+static char dersbasisfuns__doc__[] =
+"// Compute Non-zero basis functions and their derivatives.\n\
+//\n\
+// INPUT:\n\
+//\n\
+//   d  - spline degree         integer\n\
+//   k  - knot sequence         double  vector(nk)\n\
+//   u  - parametric point      double\n\
+//   s  - knot span             integer\n\
+//   n  - number of derivatives integer\n\
+//\n\
+// OUTPUT:\n\
+//\n\
+//   dN -  Basis functions      double  matrix(n+1,d+1)\n\
+//         and derivatives upto the nth derivative (n < d)\n\
+//\n\
+// Algorithm A2.3 from 'The NURBS BOOK' pg72.\n\
+\n";
 // Compute Non-zero basis functions and their derivatives.
 //
 // INPUT:
@@ -309,6 +416,9 @@ static void _dersbasisfuns(int d, double *k, int nk, double u, int s,int n, doub
 
   ndu[0][0] = 1.0;
   
+  // debug:
+  //printf("d=%d, nk=%d, u=%g, s/i=%d, n/k=%d\n",d,nk,u,s,n);
+  //printf("k[0]=%g k[-1]=%g\n",k[0], k[nk-1]);
   for( j = 1; j <= d; j++ )
   {
     left[j] = u - k[s+1-j];
@@ -316,6 +426,7 @@ static void _dersbasisfuns(int d, double *k, int nk, double u, int s,int n, doub
     saved = 0.0;
     for( r = 0; r < j; r++ )
     {
+	  //printf("r = %d\n",r);
       ndu[r][j] = right[r+1] + left[j-r];
       temp = ndu[j-1][r]/ndu[r][j];
       
@@ -323,18 +434,28 @@ static void _dersbasisfuns(int d, double *k, int nk, double u, int s,int n, doub
       saved = left[j-r]*temp;
     }
     ndu[j][j] = saved;
+	// ok same. printf("%g ",saved);
   }
+// identical  for (j=0; j<=d; j++)
+// identical	  for (r=0; r<=d; r++)
+// identical		  printf("ndu[%d,%d] = %g\n",j,r,ndu[j][r]);
 
+ //  printf("ndu %g\n", ndu[2][2]);
+ //  printf("dders %g\n",ders[1][0]);
   for( j = 0; j <= d; j++ )
     ders[j][0] = ndu[d][j];
 
   for( r = 0; r <= d; r++ )
   {
+    //printf("r=%d\n",r);
     s1 = 0;    s2 = 1;
     a[0][0] = 1.0;
 
     for( i = 1; i <= n; i++ )
     {
+	//   if (r == 2)
+	// 	  printf("i=%d\n",i);
+	  //printf("i/l = %d\n",i);
       der = 0.0;
       rk = r-i;  pk = d-i;
       
@@ -342,27 +463,34 @@ static void _dersbasisfuns(int d, double *k, int nk, double u, int s,int n, doub
       {
         a[0][s2] = a[0][s1] / ndu[rk][pk+1];
         der = a[0][s2] * ndu[pk][rk];
+  		//printf("der1 %g\n",der);
       }  
       if( rk >= -1 )
         j1 = 1;
       else
         j1 = -rk;  
-      if( r-1 <= pk )
+      if( r-1 <= pk ) //r=0: i=1 --: -1 <= 2-1: true. j2=0
         j2 = i-1;
       else
-        j2 = der-r;  
+		  // BUG
+        //j2 = der-r;  
+        j2 = d-r;  
 
+	  //printf("j1=%d, j2=%d\n", j1, j2);
       for( j = j1; j <= j2; j++ )
       {
         a[j][s2] = (a[j][s1] - a[j-1][s1]) / ndu[rk+j][pk+1];
         der += a[j][s2] * ndu[pk][rk+j];
+  		//printf("der2 %g\n",der);
       }  
       if( r <= pk )
       {
+		//printf("rpk: r=%d, pk=%d, -a[%d][%d] = %g\n",r, pk, s1, i-1, -a[i-1][s1]);
         a[i][s2] = -a[i-1][s1] / ndu[r][pk+1];
         der += a[i][s2] * ndu[pk][r];
       }  
       ders[r][i] = der;
+	  //printf("ddddder %g\n", der);
       j = s1; s1 = s2; s2 = j;
     }        
   }
@@ -374,11 +502,53 @@ static void _dersbasisfuns(int d, double *k, int nk, double u, int s,int n, doub
       ders[j][i] *= r;
     r *= d-i;
   }    
+  //printf("ders %g\n",ders[0][0]);
 
   freematrix(ndu);
   freematrix(a);
   free(left);
   free(right);
+}
+
+static PyObject * _Bas_dersbasisfuns(PyObject *self, PyObject *args)
+{
+	int d, s, k, ret, n; 
+	double u;
+	double **pntmat;
+	int dim[2];
+	PyObject *input_U;
+	PyArrayObject *dN, *U;
+
+
+	ret=-1;
+    ret = PyArg_ParseTuple(args, "iOdiii", &s, &input_U, &u, &d, &k, &n);
+	if(!ret)
+	{
+		//printf("s/i=%d, u=%g, p/d=%d, k=%d, ret=%d\n", s, u, d, k, ret);
+		return NULL;
+	}
+	//printf("ok: s/i=%d, u=%g, p/d=%d, k=%d, ret=%d, n/nk=%d\n", s, u, d, k, ret, n);
+
+	U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, PyArray_DOUBLE, 1, 1);
+	if(U == NULL)
+		return NULL;
+
+	dim[0] = d+1; 
+	dim[1] = k+1;
+	//  dN array is p+1 in size
+	dN = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
+	pntmat = vec2mat(dN->data, d+1, k+1);
+
+	
+	_dersbasisfuns(d, (double *)U->data, n, u, s, k, pntmat);
+	//printf("dN->data[0][0] = %g\n",pntmat[1][1]);
+	free(pntmat);
+//static void _dersbasisfuns(int d, double *k, int nk, double u, int s,int n, double **ders)
+	// printf("*dN->data[0]=%g \n", (double *)dN->data[0]);
+	// printf("*dN->data[1]=%g \n", (double *)dN->data[1]);
+	//return (PyObject *)dN;
+	// return Py_BuildValue("O", (PyObject *)dN );
+	return PyArray_Return(dN);
 }
 
 static char bspdeval__doc__[] =
@@ -960,6 +1130,10 @@ static PyMethodDef _Bas_methods[] =
 	{"bspkntins", _Bas_bspkntins, METH_VARARGS, bspkntins__doc__},
 	{"bspdegelev", _Bas_bspdegelev, METH_VARARGS, bspdegelev__doc__},
 	{"bspbezdecom", _Bas_bspbezdecom, METH_VARARGS, bspbezdecom__doc__},
+	// se:
+	{"basisfuns", _Bas_basisfuns, METH_VARARGS, basisfuns__doc__},
+	{"dersbasisfuns", _Bas_dersbasisfuns, METH_VARARGS, dersbasisfuns__doc__},
+	{"findspan", _Bas_findspan, METH_VARARGS, findspan__doc__},
 	{NULL, NULL}
 };
 

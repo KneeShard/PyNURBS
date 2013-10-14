@@ -4,6 +4,10 @@ dependencies = '''This module requires:
 	Numeric Python
 '''
 
+class NURBSError(Exception):
+    """Base class for NURBS errors."""
+    pass
+
 try:
     import numpy as np
 except ImportError, value:

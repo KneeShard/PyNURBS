@@ -1,6 +1,6 @@
 import math
 from _Bas import bspkntins, bspdegelev, bspbezdecom, bspeval # Lowlevel Nurbs functions
-from Util import  scale, translate, rotz
+from Util import  scale, translate, rotz, NURBSError
 
 dependencies = '''This module requires:
 	Numeric Python (NumPy)
@@ -11,8 +11,6 @@ try:
 except ImportError, value:
 	print dependencies
 	raise
-
-NURBSError = 'NURBSError'
 
 class Crv:
     '''Construct a NURB curve and check the format.

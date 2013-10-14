@@ -1,6 +1,6 @@
 import math
 from _Bas import  bspkntins, bspdegelev, bspbezdecom, bspeval # Lowlevel functions
-from Util import translate, scale, roty, rotx, rotz
+from Util import translate, scale, roty, rotx, rotz, NURBSError
 import Crv
 
 dependencies = '''This module requires:
@@ -12,8 +12,6 @@ try:
 except ImportError, value:
 	print dependencies
 	raise
-
-NURBSError = 'NURBSError'
 
 class Srf:
     '''Construct a NURB surface structure, and check the format.

@@ -6,13 +6,14 @@ http://www.aria.uklinux.net/nurbs
 Dependency
 ============
 Python 2.0 or newer
-Numerical Python
-Dislin -> optional but recomended
+NumPy
 PyOpenGL -> optional
 
 Installation
 ============
-See python documentation for Distutils.
+python setup.py install
+
+See documentation for setuptools.
 
 License
 =======

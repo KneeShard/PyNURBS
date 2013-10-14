@@ -44,7 +44,7 @@ class Crv:
         uknots = np.sort(np.asarray(uknots, np.float))
         nku = uknots.shape[0]
         uknots = (uknots - uknots[0])/(uknots[-1] - uknots[0])
-        print "knot sequence: " + str(uknots)
+        #print "knot sequence: " + str(uknots)
         if uknots[0] == uknots[-1]:
             raise NURBSError, 'Illegal uknots sequence'
         self.uknots = uknots
@@ -107,7 +107,7 @@ class Crv:
     def pnt3D(self, ut):
         "Evaluate parametric point[s] and return 3D cartesian coordinate[s]"
         val = self.pnt4D(ut)
-        return val[0:3,:]/np.resize(val[-1,:], (3, val.shape[1]))
+        return val[:3]/val[3]
 
     def pnt4D(self, ut):
         "Evaluate parametric point[s] and return 4D homogeneous coordinates"
@@ -121,81 +121,27 @@ class Crv:
         """A simple plotting function for debugging purpose
 	n = number of subdivisions.
 	Depends on the matplotlib plotting library."""
-        try:
-			from mpl_toolkits.mplot3d import axes3d
-			import matplotlib as mpl
-			import matplotlib.pyplot as plt
-        except ImportError, value:
-            print 'matplotlib plotting library not available'
-            return
+
+        from mpl_toolkits.mplot3d import axes3d
+        import matplotlib.pyplot as plt
 
         pnts = self.pnt3D(np.arange(n + 1, dtype = np.float64)/n)
-        knots = self.pnt3D(self.uknots)
+        knot = self.pnt3D(self.uknots)
+        ctrl = self.cntrl[:3]/self.cntrl[3]
 
-		# TODO clean (most of this isn't necessary with matplotlib)
-        maxminx = np.sort(self.cntrl[0,:]/self.cntrl[3,:])
-        minx = maxminx[0]
-        maxx = maxminx[-1]
-        if minx == maxx:
-            minx -= 1.
-            maxx += 1.
-        maxminy = np.sort(self.cntrl[1,:]/self.cntrl[3,:])
-        miny = maxminy[0]
-        maxy = maxminy[-1]
-        if miny == maxy:
-            miny -= 1.
-            maxy += 1.
-        maxminz = np.sort(self.cntrl[2,:]/self.cntrl[3,:])
-        minz = maxminz[0]
-        maxz = maxminz[-1]
-        if minz == maxz:
-            minz -= 1.
-            maxz += 1.
-			
         fig = plt.figure()
-            
-        
         ax = fig.add_subplot(111, projection='3d')
-        # TODO
-        plt.title("b-spline Curve. n={}, p={}".format(1,-1 ))
-        plt.xlabel('x')
-        plt.ylabel('y')
-        # FIXME plt.zlabel('z')
-		# actual nurbs
-        plt.plot(pnts[0,:], pnts[1,:], pnts[2,:], label='parametric bspline')
 
-		# control points/polygon
-        plt.plot(self.cntrl[0,:]/self.cntrl[3,:], self.cntrl[1,:]/self.cntrl[3,:],
-                      self.cntrl[2,:]/self.cntrl[3,:], 'ro-', label='control pts', linewidth=.5)
+        ax.set_title( "b-spline Curve, degree={0}".format(self.degree) )
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
 
-        plt.plot(knots[0,:], knots[1,:], knots[2,:], 'y+', markersize = 10, markeredgewidth=1.8, label="knots")
-        plt.legend(fontsize='x-small',bbox_to_anchor=(0.91, 1), loc=2, borderaxespad=-1.)
-        plt.savefig("bspline-curve-R3.png")
-        # plt.show() # stops here
-        plt.close()
+        ax.plot(pnts[0], pnts[1], pnts[2], label='parametric bspline')
+        ax.plot(ctrl[0], ctrl[1], ctrl[2], 'ro-', label='control pts', linewidth=.5)
+        ax.plot(knot[0], knot[1], knot[2], 'y+', markersize = 10, markeredgewidth=1.8, label="knots")
 
-        # dislin.metafl('cons')
-        # dislin.disini()
-        # dislin.hwfont()
-        # dislin.pagera()
-        # dislin.name('X-axis', 'X')
-        # dislin.name('Y-axis', 'Y')
-        # dislin.name('Z-axis', 'Z')
-        # dislin.graf3d(minx, maxx, 0 , abs((maxx-minx)/4.),
-        #               miny, maxy, 0 , abs((maxy-miny)/4.),
-        #               minz, maxz, 0 , abs((maxz-minz)/4.))
-        # dislin.color('yellow')
-			# se: changes to plot
-        # dislin.curv3d(pnts[0,:], pnts[1,:], pnts[2,:], n+1)
-        # dislin.color('red')
-        # dislin.dashm()
-        # dislin.curv3d(self.cntrl[0,:]/self.cntrl[3,:], self.cntrl[1,:]/self.cntrl[3,:],
-        #               self.cntrl[2,:]/self.cntrl[3,:], self.cntrl.shape[1])
-        # dislin.color('white')
-        # dislin.incmrk(-1)
-        # dislin.marker(8)
-        # dislin.curv3d(knots[0,:], knots[1,:], knots[2,:], knots.shape[1])
-        # dislin.disfin()
+        ax.legend(fontsize='x-small',bbox_to_anchor=(0.91, 1), loc=2, borderaxespad=-1.)
 
     def __call__(self, *args):
         return self.pnt3D(args[0])
@@ -232,10 +178,10 @@ class UnitCircle(Crv):
     def __init__(self):
         r22 = np.sqrt(2.)/2.
         uknots = [0., 0., 0., 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1., 1.,1.]
-        cntrl = [[0., r22, 1., r22, 0., -r22, -1., -r22, 0.],
-                 [-1., -r22, 0., r22, 1., r22, 0., -r22, -1.],
-                 [0., 0., 0., 0., 0., 0., 0., 0., 0.],
-                 [1., r22, 1., r22, 1., r22, 1., r22, 1.]]
+        cntrl = [[ 0.,  r22, 1., r22, 0., -r22, -1., -r22,  0.],
+                 [-1., -r22, 0., r22, 1.,  r22,  0., -r22, -1.],
+                 [ 0.,  0.,  0., 0.,  0.,  0.,   0.,  0.,   0.],
+                 [ 1.,  r22, 1., r22, 1.,  r22,  1.,  r22,  1.]]
         Crv.__init__(self, cntrl, uknots)
 
 class Circle(UnitCircle):

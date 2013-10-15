@@ -12,7 +12,7 @@ except ImportError, value:
 	print dependencies
 	raise
 
-class Crv:
+class Crv(object):
     '''Construct a NURB curve and check the format.
     
  The NURB curve is represented by a 4 dimensional b-spline.
@@ -36,16 +36,25 @@ class Crv:
     the spline order.'''
 
     def __init__(self, cntrl, uknots):
+
+        # Placeholder for Bezier representation of self
         self._bezier = None
+
         # Force the u knot sequence to be a vector in ascending order
         # and normalise between [0.0,1.0]
         uknots = np.sort(np.asarray(uknots, np.float))
         nku = uknots.shape[0]
         uknots = (uknots - uknots[0])/(uknots[-1] - uknots[0])
-        #print "knot sequence: " + str(uknots)
+
+        # TODO: insert more knot checks
         if uknots[0] == uknots[-1]:
             raise NURBSError, 'Illegal uknots sequence'
+
         self.uknots = uknots
+
+        # Complain about control points that are less than 2D or more
+        # than 4D. Fill 3rd dimension with zeros and 4th dimension
+        # with ones if necessary.
         cntrl = np.asarray(cntrl, np.float)
         (dim, nu) = cntrl.shape
         if dim < 2 or dim > 4:
@@ -56,6 +65,7 @@ class Crv:
             self.cntrl[-1,:] = np.ones((nu,))
         else:
             self.cntrl = cntrl
+
         # Spline degree
         self.degree = nku - nu - 1
         if self.degree < 0:
@@ -145,17 +155,36 @@ class Crv:
         return self.pnt3D(args[0])
 
     def __repr__(self):
-        return 'Nurbs curve:\ndegree: %s\ncntrl: %s\nuknots: %s\n' % (`self.degree`,`self.cntrl`,`self.uknots`)
+        return 'Nurbs curve:\n  degree: %s\n  cntrl: %s\n  uknots: %s' % (`self.degree`,`self.cntrl`,`self.uknots`)
 
 class Line(Crv):
-    """A straight line segment
-	Example: c = Line([0,0],[1,1])"""
+    """A straight line segment.
+
+    >>> Line(p1=[0,0],p2=[1,1])
+    Nurbs curve:
+      degree: 1
+      cntrl: array([[ 0.,  1.],
+           [ 0.,  1.],
+           [ 0.,  0.],
+           [ 1.,  1.]])
+      uknots: array([ 0.,  0.,  1.,  1.])
+    """
     def __init__(self, p1 = (0,0,0), p2 = (1,0,0)):
-        Crv.__init__(self, np.transpose([p1,p2]), [0,0,1,1])
+        super(Line, self).__init__(np.transpose([p1,p2]), [0,0,1,1])
                        
 class Polyline(Crv):
-    """A polyline
-	Example: c = Polyline([[0,0],[5,2],[10,8]])"""
+    """A polyline.
+
+    >>> pnts = [[0,0],[5,2],[10,8]]
+    >>> Polyline(pnts)
+    Nurbs curve:
+      degree: 1
+      cntrl: array([[  0.,   5.,   5.,  10.],
+           [  0.,   2.,   2.,   8.],
+           [  0.,   0.,   0.,   0.],
+           [  1.,   1.,   1.,   1.]])
+      uknots: array([ 0. ,  0. ,  0.5,  0.5,  1. ,  1. ])
+    """
     def __init__(self, pnts):
         pnts = np.transpose(np.asarray(pnts, np.float))
         npnts = pnts.shape[1]
@@ -169,10 +198,15 @@ class Polyline(Crv):
         uknots = np.zeros(npnts * 2, np.float)
         uknots[0::2] = np.arange(npnts)
         uknots[1::2] = np.arange(npnts)
-        Crv.__init__(self, cntrl, uknots)
+        super(Polyline, self).__init__(cntrl, uknots)
 
 class UnitCircle(Crv):
-    "NURBS representation of a unit circle in the xy plan"
+    """NURBS representation of a unit circle in the xy plane.
+
+    >>> c = UnitCircle()
+    >>> assert c.degree==2
+    >>> assert np.array_equiv(c.cntrl[3,1::2]/np.sqrt(2.)*2., np.ones(4))
+    """
     def __init__(self):
         r22 = np.sqrt(2.)/2.
         uknots = [0., 0., 0., 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1., 1.,1.]
@@ -180,22 +214,36 @@ class UnitCircle(Crv):
                  [-1., -r22, 0., r22, 1.,  r22,  0., -r22, -1.],
                  [ 0.,  0.,  0., 0.,  0.,  0.,   0.,  0.,   0.],
                  [ 1.,  r22, 1., r22, 1.,  r22,  1.,  r22,  1.]]
-        Crv.__init__(self, cntrl, uknots)
+        super(UnitCircle, self).__init__(cntrl, uknots)
 
 class Circle(UnitCircle):
-    """NURBS representation of a circle in the xy plan
-	with given radius (default = .5) and optional center."""
+    """NURBS representation of a circle in the xy plane
+    with given radius (default = .5) and optional center.
+
+    >>> c = Circle(radius=0.7, center=[1,0])
+    >>> c.cntrl[1]
+    array([-0.7       , -0.49497475,  0.        ,  0.49497475,  0.7       ,
+            0.49497475,  0.        , -0.49497475, -0.7       ])
+    """
     def __init__(self, radius = .5, center = None):
-        UnitCircle.__init__(self)
+        super(Circle, self).__init__()
         if radius != 1.:
             self.trans(scale([radius, radius]))
         if center:
             self.trans(translate(center))
 
 class Arc(Crv):
-    """NURBS representation of a arc in the xy plan
-	with given radius (default = 1.) and optional center,
-	start angle (default = 0) and end angle. (default = 2*pi)""" 
+    """NURBS representation of an arc in the xy plane
+    with given radius (default = 1.) and optional center,
+    start angle (default = 0) and end angle. (default = 2*pi)
+
+    >>> c0 = UnitCircle()
+    >>> c1 = Arc()
+    >>> u0 = np.linspace(0.25,0.5,num=5)
+    >>> u1 = np.linspace(0.0,0.25,num=5)
+    >>> np.allclose(c0.pnt3D(u0), c1.pnt3D(u1))
+    True
+    """
     def __init__(self, radius = 1.,center = None, sang = 0., eang = 2*math.pi):
         sweep = eang - sang # sweep angle of arc
         if sweep < 0.:
@@ -233,17 +281,8 @@ class Arc(Crv):
         if center:
             xx = translate(center)
             coefs = np.dot(xx, coefs)
-        Crv.__init__(self, coefs, knots)
+        super(Arc, self).__init__(coefs, knots)
 
 if __name__ == '__main__':
-    #c = Polyline([[0,0],[5,2],[10,8]])
-    #c = Crv([[0,30,60,90],[0,0,30,30]],[0,0,0,0,1,1,1,1])
-    #c = Line([0,0],[1,1])
-    c = UnitCircle()
-    #c = Arc(1.,None,0,math.pi/2.)
-
-    '''cntrl = [[-50., -75., 25., 0., -25., 75., 50.],
-             [25., 50., 50., 0., -50., -50., 25.]]
-    knots = [0., 0., 0., .2, .4, .6, .8, 1., 1., 1.]
-    c = Crv(cntrl, knots)'''
-    c.plot()
+    import doctest
+    doctest.testmod()

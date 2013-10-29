@@ -1,6 +1,6 @@
 import math
 from _Bas import bspkntins, bspdegelev, bspbezdecom, bspeval # Lowlevel Nurbs functions
-from Util import  scale, translate, rotz
+from Util import  scale, translate, rotz, NURBSError
 
 dependencies = '''This module requires:
 	Numeric Python (NumPy)
@@ -12,9 +12,7 @@ except ImportError, value:
 	print dependencies
 	raise
 
-NURBSError = 'NURBSError'
-
-class Crv:
+class Crv(object):
     '''Construct a NURB curve and check the format.
     
  The NURB curve is represented by a 4 dimensional b-spline.
@@ -38,16 +36,25 @@ class Crv:
     the spline order.'''
 
     def __init__(self, cntrl, uknots):
+
+        # Placeholder for Bezier representation of self
         self._bezier = None
+
         # Force the u knot sequence to be a vector in ascending order
         # and normalise between [0.0,1.0]
         uknots = np.sort(np.asarray(uknots, np.float))
         nku = uknots.shape[0]
         uknots = (uknots - uknots[0])/(uknots[-1] - uknots[0])
-        print "knot sequence: " + str(uknots)
+
+        # TODO: insert more knot checks
         if uknots[0] == uknots[-1]:
             raise NURBSError, 'Illegal uknots sequence'
+
         self.uknots = uknots
+
+        # Complain about control points that are less than 2D or more
+        # than 4D. Fill 3rd dimension with zeros and 4th dimension
+        # with ones if necessary.
         cntrl = np.asarray(cntrl, np.float)
         (dim, nu) = cntrl.shape
         if dim < 2 or dim > 4:
@@ -58,6 +65,7 @@ class Crv:
             self.cntrl[-1,:] = np.ones((nu,))
         else:
             self.cntrl = cntrl
+
         # Spline degree
         self.degree = nku - nu - 1
         if self.degree < 0:
@@ -107,7 +115,7 @@ class Crv:
     def pnt3D(self, ut):
         "Evaluate parametric point[s] and return 3D cartesian coordinate[s]"
         val = self.pnt4D(ut)
-        return val[0:3,:]/np.resize(val[-1,:], (3, val.shape[1]))
+        return val[:3]/val[3]
 
     def pnt4D(self, ut):
         "Evaluate parametric point[s] and return 4D homogeneous coordinates"
@@ -121,97 +129,62 @@ class Crv:
         """A simple plotting function for debugging purpose
 	n = number of subdivisions.
 	Depends on the matplotlib plotting library."""
-        try:
-			from mpl_toolkits.mplot3d import axes3d
-			import matplotlib as mpl
-			import matplotlib.pyplot as plt
-        except ImportError, value:
-            print 'matplotlib plotting library not available'
-            return
+
+        from mpl_toolkits.mplot3d import axes3d
+        import matplotlib.pyplot as plt
 
         pnts = self.pnt3D(np.arange(n + 1, dtype = np.float64)/n)
-        knots = self.pnt3D(self.uknots)
+        knot = self.pnt3D(self.uknots)
+        ctrl = self.cntrl[:3]/self.cntrl[3]
 
-		# TODO clean (most of this isn't necessary with matplotlib)
-        maxminx = np.sort(self.cntrl[0,:]/self.cntrl[3,:])
-        minx = maxminx[0]
-        maxx = maxminx[-1]
-        if minx == maxx:
-            minx -= 1.
-            maxx += 1.
-        maxminy = np.sort(self.cntrl[1,:]/self.cntrl[3,:])
-        miny = maxminy[0]
-        maxy = maxminy[-1]
-        if miny == maxy:
-            miny -= 1.
-            maxy += 1.
-        maxminz = np.sort(self.cntrl[2,:]/self.cntrl[3,:])
-        minz = maxminz[0]
-        maxz = maxminz[-1]
-        if minz == maxz:
-            minz -= 1.
-            maxz += 1.
-			
         fig = plt.figure()
-            
-        
         ax = fig.add_subplot(111, projection='3d')
-        # TODO
-        plt.title("b-spline Curve. n={}, p={}".format(1,-1 ))
-        plt.xlabel('x')
-        plt.ylabel('y')
-        # FIXME plt.zlabel('z')
-		# actual nurbs
-        plt.plot(pnts[0,:], pnts[1,:], pnts[2,:], label='parametric bspline')
 
-		# control points/polygon
-        plt.plot(self.cntrl[0,:]/self.cntrl[3,:], self.cntrl[1,:]/self.cntrl[3,:],
-                      self.cntrl[2,:]/self.cntrl[3,:], 'ro-', label='control pts', linewidth=.5)
+        ax.set_title( "b-spline Curve, degree={0}".format(self.degree) )
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
 
-        plt.plot(knots[0,:], knots[1,:], knots[2,:], 'y+', markersize = 10, markeredgewidth=1.8, label="knots")
-        plt.legend(fontsize='x-small',bbox_to_anchor=(0.91, 1), loc=2, borderaxespad=-1.)
-        plt.savefig("bspline-curve-R3.png")
-        # plt.show() # stops here
-        plt.close()
+        ax.plot(pnts[0], pnts[1], pnts[2], label='parametric bspline')
+        ax.plot(ctrl[0], ctrl[1], ctrl[2], 'ro-', label='control pts', linewidth=.5)
+        ax.plot(knot[0], knot[1], knot[2], 'y+', markersize = 10, markeredgewidth=1.8, label="knots")
 
-        # dislin.metafl('cons')
-        # dislin.disini()
-        # dislin.hwfont()
-        # dislin.pagera()
-        # dislin.name('X-axis', 'X')
-        # dislin.name('Y-axis', 'Y')
-        # dislin.name('Z-axis', 'Z')
-        # dislin.graf3d(minx, maxx, 0 , abs((maxx-minx)/4.),
-        #               miny, maxy, 0 , abs((maxy-miny)/4.),
-        #               minz, maxz, 0 , abs((maxz-minz)/4.))
-        # dislin.color('yellow')
-			# se: changes to plot
-        # dislin.curv3d(pnts[0,:], pnts[1,:], pnts[2,:], n+1)
-        # dislin.color('red')
-        # dislin.dashm()
-        # dislin.curv3d(self.cntrl[0,:]/self.cntrl[3,:], self.cntrl[1,:]/self.cntrl[3,:],
-        #               self.cntrl[2,:]/self.cntrl[3,:], self.cntrl.shape[1])
-        # dislin.color('white')
-        # dislin.incmrk(-1)
-        # dislin.marker(8)
-        # dislin.curv3d(knots[0,:], knots[1,:], knots[2,:], knots.shape[1])
-        # dislin.disfin()
+        ax.legend(fontsize='x-small',bbox_to_anchor=(0.91, 1), loc=2, borderaxespad=-1.)
 
     def __call__(self, *args):
         return self.pnt3D(args[0])
 
     def __repr__(self):
-        return 'Nurbs curve:\ndegree: %s\ncntrl: %s\nuknots: %s\n' % (`self.degree`,`self.cntrl`,`self.uknots`)
+        return 'Nurbs curve:\n  degree: %s\n  cntrl: %s\n  uknots: %s' % (`self.degree`,`self.cntrl`,`self.uknots`)
 
 class Line(Crv):
-    """A straight line segment
-	Example: c = Line([0,0],[1,1])"""
+    """A straight line segment.
+
+    >>> Line(p1=[0,0],p2=[1,1])
+    Nurbs curve:
+      degree: 1
+      cntrl: array([[ 0.,  1.],
+           [ 0.,  1.],
+           [ 0.,  0.],
+           [ 1.,  1.]])
+      uknots: array([ 0.,  0.,  1.,  1.])
+    """
     def __init__(self, p1 = (0,0,0), p2 = (1,0,0)):
-        Crv.__init__(self, np.transpose([p1,p2]), [0,0,1,1])
+        super(Line, self).__init__(np.transpose([p1,p2]), [0,0,1,1])
                        
 class Polyline(Crv):
-    """A polyline
-	Example: c = Polyline([[0,0],[5,2],[10,8]])"""
+    """A polyline.
+
+    >>> pnts = [[0,0],[5,2],[10,8]]
+    >>> Polyline(pnts)
+    Nurbs curve:
+      degree: 1
+      cntrl: array([[  0.,   5.,   5.,  10.],
+           [  0.,   2.,   2.,   8.],
+           [  0.,   0.,   0.,   0.],
+           [  1.,   1.,   1.,   1.]])
+      uknots: array([ 0. ,  0. ,  0.5,  0.5,  1. ,  1. ])
+    """
     def __init__(self, pnts):
         pnts = np.transpose(np.asarray(pnts, np.float))
         npnts = pnts.shape[1]
@@ -225,33 +198,52 @@ class Polyline(Crv):
         uknots = np.zeros(npnts * 2, np.float)
         uknots[0::2] = np.arange(npnts)
         uknots[1::2] = np.arange(npnts)
-        Crv.__init__(self, cntrl, uknots)
+        super(Polyline, self).__init__(cntrl, uknots)
 
 class UnitCircle(Crv):
-    "NURBS representation of a unit circle in the xy plan"
+    """NURBS representation of a unit circle in the xy plane.
+
+    >>> c = UnitCircle()
+    >>> assert c.degree==2
+    >>> assert np.array_equiv(c.cntrl[3,1::2]/np.sqrt(2.)*2., np.ones(4))
+    """
     def __init__(self):
         r22 = np.sqrt(2.)/2.
         uknots = [0., 0., 0., 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1., 1.,1.]
-        cntrl = [[0., r22, 1., r22, 0., -r22, -1., -r22, 0.],
-                 [-1., -r22, 0., r22, 1., r22, 0., -r22, -1.],
-                 [0., 0., 0., 0., 0., 0., 0., 0., 0.],
-                 [1., r22, 1., r22, 1., r22, 1., r22, 1.]]
-        Crv.__init__(self, cntrl, uknots)
+        cntrl = [[ 0.,  r22, 1., r22, 0., -r22, -1., -r22,  0.],
+                 [-1., -r22, 0., r22, 1.,  r22,  0., -r22, -1.],
+                 [ 0.,  0.,  0., 0.,  0.,  0.,   0.,  0.,   0.],
+                 [ 1.,  r22, 1., r22, 1.,  r22,  1.,  r22,  1.]]
+        super(UnitCircle, self).__init__(cntrl, uknots)
 
 class Circle(UnitCircle):
-    """NURBS representation of a circle in the xy plan
-	with given radius (default = .5) and optional center."""
+    """NURBS representation of a circle in the xy plane
+    with given radius (default = .5) and optional center.
+
+    >>> c = Circle(radius=0.7, center=[1,0])
+    >>> c.cntrl[1]
+    array([-0.7       , -0.49497475,  0.        ,  0.49497475,  0.7       ,
+            0.49497475,  0.        , -0.49497475, -0.7       ])
+    """
     def __init__(self, radius = .5, center = None):
-        UnitCircle.__init__(self)
+        super(Circle, self).__init__()
         if radius != 1.:
             self.trans(scale([radius, radius]))
         if center:
             self.trans(translate(center))
 
 class Arc(Crv):
-    """NURBS representation of a arc in the xy plan
-	with given radius (default = 1.) and optional center,
-	start angle (default = 0) and end angle. (default = 2*pi)""" 
+    """NURBS representation of an arc in the xy plane
+    with given radius (default = 1.) and optional center,
+    start angle (default = 0) and end angle. (default = 2*pi)
+
+    >>> c0 = UnitCircle()
+    >>> c1 = Arc()
+    >>> u0 = np.linspace(0.25,0.5,num=5)
+    >>> u1 = np.linspace(0.0,0.25,num=5)
+    >>> np.allclose(c0.pnt3D(u0), c1.pnt3D(u1))
+    True
+    """
     def __init__(self, radius = 1.,center = None, sang = 0., eang = 2*math.pi):
         sweep = eang - sang # sweep angle of arc
         if sweep < 0.:
@@ -289,17 +281,8 @@ class Arc(Crv):
         if center:
             xx = translate(center)
             coefs = np.dot(xx, coefs)
-        Crv.__init__(self, coefs, knots)
+        super(Arc, self).__init__(coefs, knots)
 
 if __name__ == '__main__':
-    #c = Polyline([[0,0],[5,2],[10,8]])
-    #c = Crv([[0,30,60,90],[0,0,30,30]],[0,0,0,0,1,1,1,1])
-    #c = Line([0,0],[1,1])
-    c = UnitCircle()
-    #c = Arc(1.,None,0,math.pi/2.)
-
-    '''cntrl = [[-50., -75., 25., 0., -25., 75., 50.],
-             [25., 50., 50., 0., -50., -50., 25.]]
-    knots = [0., 0., 0., .2, .4, .6, .8, 1., 1., 1.]
-    c = Crv(cntrl, knots)'''
-    c.plot()
+    import doctest
+    doctest.testmod()

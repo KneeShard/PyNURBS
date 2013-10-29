@@ -1,4 +1,4 @@
-from distutils.core import setup, Extension
+from setuptools import setup, Extension
 import numpy as np
 
 setup(
@@ -8,7 +8,7 @@ setup(
     author='Runar Tenfjord',
     author_email='runten@netcom.no',
     url='http://runten.tripod.com/',
-    packages=['Nurbs', 'Nurbs.demos'],
+    packages=['Nurbs'],
     include_dirs = [np.get_include()],
     ext_modules = [Extension("Nurbs._Bas", ["Nurbs/_Bas.c"])],
     data_files=[('Nurbs/Doc', ['LICENSE', 'README'])]

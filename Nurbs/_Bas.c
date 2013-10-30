@@ -177,19 +177,19 @@ static int _findspan(int n, int p, double u, double *U)
 
 static PyObject * _Bas_findspan(PyObject *self, PyObject *args)
 {
-	int n, p;
-	double u, ret;
+	int n, p, ret;
+	double u;
 	PyObject *input_U;
 	PyArrayObject  *U;
 	if(!PyArg_ParseTuple(args, "iidO", &n, &p, &u, &input_U))
 		return NULL;
 
-	U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, PyArray_DOUBLE, 1, 1);
+	U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, NPY_DOUBLE, 1, 1);
 	if(U == NULL)
 		return NULL;
 
-	ret = _findspan(n, p, u, (double *)U->data);
-	return Py_BuildValue("i", (int) ret);
+	ret = _findspan(n, p, u, (double *)PyArray_DATA(U));
+	return Py_BuildValue("i", ret);
 }
 
 // Basis Function. 
@@ -197,8 +197,8 @@ static PyObject * _Bas_findspan(PyObject *self, PyObject *args)
 // INPUT:
 //
 //   i - knot span  ( from FindSpan() )
-//   u - parametric point
 //   p - spline degree
+//   u - parametric point
 //   U - knot sequence
 //
 // OUTPUT:
@@ -212,8 +212,8 @@ static char basisfuns__doc__[] =
 \n\
  INPUT:\n\
    i - knot span  ( from FindSpan() )\n\
-   u - parametric point\n\
    p - spline degree\n\
+   u - parametric point\n\
    U - knot sequence\n\
 \n\
  OUTPUT:\n\
@@ -259,30 +259,24 @@ static void _basisfuns(int i, double u, int p, double *U, double *N)
 
 static PyObject * _Bas_basisfuns(PyObject *self, PyObject *args)
 {
-	int i, p, ret;
+	int i, p;
 	double u;
-	int dim[2];
+	npy_intp dim[2];
 	PyObject *input_U;
 	PyArrayObject *N, *U;
 
-
-	ret=-1;
-    ret = PyArg_ParseTuple(args, "iOdi", &i, &input_U, &u, &p);
-	if(!ret)
-	{
-		//printf("i=%d, u=%g, p=%d, ret=%d\n", i, u, p);
+	if(!PyArg_ParseTuple(args, "iidO", &i, &p, &u, &input_U))
 		return NULL;
-	}
 
-	U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, PyArray_DOUBLE, 1, 1);
+	U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, NPY_DOUBLE, 1, 1);
 	if(U == NULL)
 		return NULL;
 
 	dim[0] = p+1;
 	dim[1] = 0; 
 	//  N array is p+1 in size
-	N = (PyArrayObject *) PyArray_FromDims(1, dim, PyArray_DOUBLE);
-	_basisfuns(i, u, p, (double *)U->data, (double *)N->data);
+    N = (PyArrayObject *) PyArray_SimpleNew(1, dim, NPY_DOUBLE);
+	_basisfuns(i, u, p, (double *)PyArray_DATA(U), (double *)PyArray_DATA(N));
 	// printf("*N->data[0]=%g \n", (double *)N->data[0]);
 	// printf("*N->data[1]=%g \n", (double *)N->data[1]);
 	//return (PyObject *)N;
@@ -337,19 +331,20 @@ static void _bspeval(int d, double **ctrl, int mc, int nc, double *k, int nk, do
 
 static PyObject * _Bas_bspeval(PyObject *self, PyObject *args)
 {
-	int d, mc, nc, nu, dim[2];
+	int d, mc, nc, nu;
+    npy_intp dim[2];
 	double **ctrlmat, **pntmat;
 	PyObject *input_ctrl, *input_k, *input_u;
 	PyArrayObject *ctrl, *k, *u, *pnt;
 	if(!PyArg_ParseTuple(args, "iOOO", &d, &input_ctrl, &input_k, &input_u))
 		return NULL;
-	ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
+	ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, NPY_DOUBLE, 2, 2);
 	if(ctrl == NULL)
 		return NULL;
-	k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
+	k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, NPY_DOUBLE, 1, 1);
 	if(k == NULL)
 		return NULL;
-	u = (PyArrayObject *) PyArray_ContiguousFromObject(input_u, PyArray_DOUBLE, 1, 1);
+	u = (PyArrayObject *) PyArray_ContiguousFromObject(input_u, NPY_DOUBLE, 1, 1);
 	if(u == NULL)
 		return NULL;
 	mc = ctrl->dimensions[0];
@@ -357,10 +352,10 @@ static PyObject * _Bas_bspeval(PyObject *self, PyObject *args)
 	nu = u->dimensions[0];
 	dim[0] = mc;
 	dim[1] = nu;
-	pnt = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
-	ctrlmat = vec2mat(ctrl->data, mc, nc);
-	pntmat = vec2mat(pnt->data, mc, nu);
-	_bspeval(d, ctrlmat, mc, nc, (double *)k->data, k->dimensions[0], (double *)u->data, nu, pntmat);
+	pnt = (PyArrayObject *) PyArray_SimpleNew(2, dim, NPY_DOUBLE);
+	ctrlmat = vec2mat((double *)PyArray_DATA(ctrl), mc, nc);
+	pntmat  = vec2mat((double *)PyArray_DATA(pnt),  mc, nu);
+	_bspeval(d, ctrlmat, mc, nc, (double *)PyArray_DATA(k), k->dimensions[0], (double *)PyArray_DATA(u), nu, pntmat);
 	free(pntmat);
 	free(ctrlmat);
 	Py_DECREF(ctrl);
@@ -1137,7 +1132,7 @@ static PyMethodDef _Bas_methods[] =
 	{NULL, NULL}
 };
 
-void init_Bas()
+PyMODINIT_FUNC init_Bas(void)
 {
 	PyObject *m;
 	m = Py_InitModule3("_Bas", _Bas_methods, _Bas_module__doc__);

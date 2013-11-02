@@ -1,4 +1,5 @@
 #include "Python.h"
+//#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include "numpy/arrayobject.h"
 #include <math.h>
 
@@ -301,8 +302,8 @@ OUTPUT:\n\
 Modified version of Algorithm A3.1 from 'The NURBS BOOK' pg82.\n\
 \n";
 
-static void _bspeval(int d, double **ctrl, int mc, int nc, double *k, int nk, double *u,
-            int nu, double **pnt)
+static void _bspeval(int d, double *ctrl, int mc, int nc, double *k, int nk, double *u,
+            int nu, double *pnt)
 {
   int i, s, tmp1, row, col;
   double tmp2;
@@ -310,7 +311,7 @@ static void _bspeval(int d, double **ctrl, int mc, int nc, double *k, int nk, do
   // space for the basis functions
   double *N = (double*) malloc((d+1)*sizeof(double));
 
-  // for each parametric point i
+  // for each parametric point u[col]
   for (col = 0; col < nu; col++)
   {
     // find the span of u[col]
@@ -322,42 +323,47 @@ static void _bspeval(int d, double **ctrl, int mc, int nc, double *k, int nk, do
     {
       tmp2 = 0.0;   
       for (i = 0; i <= d; i++)
-	  tmp2 += N[i] * ctrl[row][tmp1+i];
-      pnt[row][col] = tmp2;
+        tmp2 += N[i] * ctrl[row*nc+tmp1+i];
+      pnt[row*nu+col] = tmp2;
     }
   }
   free(N);
-} 
+}
 
 static PyObject * _Bas_bspeval(PyObject *self, PyObject *args)
 {
-	int d, mc, nc, nu;
-    npy_intp dim[2];
-	double **ctrlmat, **pntmat;
+	int d;
+    npy_intp dim[2], mc, nc, nu;
+	double *ctrldat, *pntdat, *kdat, *udat;
 	PyObject *input_ctrl, *input_k, *input_u;
 	PyArrayObject *ctrl, *k, *u, *pnt;
+
 	if(!PyArg_ParseTuple(args, "iOOO", &d, &input_ctrl, &input_k, &input_u))
 		return NULL;
-	ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, NPY_DOUBLE, 2, 2);
+
+	ctrl = (PyArrayObject *) PyArray_ContiguousFromAny(input_ctrl, NPY_DOUBLE, 2, 2);
 	if(ctrl == NULL)
 		return NULL;
-	k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, NPY_DOUBLE, 1, 1);
+	k = (PyArrayObject *) PyArray_ContiguousFromAny(input_k, NPY_DOUBLE, 1, 1);
 	if(k == NULL)
 		return NULL;
-	u = (PyArrayObject *) PyArray_ContiguousFromObject(input_u, NPY_DOUBLE, 1, 1);
+	u = (PyArrayObject *) PyArray_ContiguousFromAny(input_u, NPY_DOUBLE, 1, 1);
 	if(u == NULL)
 		return NULL;
-	mc = ctrl->dimensions[0];
-	nc = ctrl->dimensions[1];
-	nu = u->dimensions[0];
-	dim[0] = mc;
-	dim[1] = nu;
+
+    nu = PyArray_DIM(u, 0);
+    mc = PyArray_DIM(ctrl, 0);
+    nc = PyArray_DIM(ctrl, 1);
+    dim[0] = mc;
+    dim[1] = nu;
 	pnt = (PyArrayObject *) PyArray_SimpleNew(2, dim, NPY_DOUBLE);
-	ctrlmat = vec2mat((double *)PyArray_DATA(ctrl), mc, nc);
-	pntmat  = vec2mat((double *)PyArray_DATA(pnt),  mc, nu);
-	_bspeval(d, ctrlmat, mc, nc, (double *)PyArray_DATA(k), k->dimensions[0], (double *)PyArray_DATA(u), nu, pntmat);
-	free(pntmat);
-	free(ctrlmat);
+
+	ctrldat = (double *)PyArray_DATA(ctrl);
+	pntdat  = (double *)PyArray_DATA(pnt);
+	kdat    = (double *)PyArray_DATA(k);
+	udat    = (double *)PyArray_DATA(u);
+	_bspeval(d, ctrldat, mc, nc, kdat, PyArray_DIM(k, 0), udat, nu, pntdat);
+
 	Py_DECREF(ctrl);
 	Py_DECREF(k);
 	Py_DECREF(u);

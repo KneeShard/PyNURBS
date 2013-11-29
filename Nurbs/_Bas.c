@@ -49,17 +49,17 @@ static double **matrix(int nrows, int ncols)
   int row;
   double **mat;
 
-  mat = (double**) malloc (nrows*sizeof(double*));
-  mat[0] = (double*) malloc (nrows*ncols*sizeof(double));
-  for (row = 1; row < nrows; row++)
-    mat[row] = mat[row-1] + ncols;  
+  mat = (double**) malloc(nrows*sizeof(double*));
+  for (row = 0; row < nrows; row++)
+    mat[row] = (double*) malloc(ncols*sizeof(double));
   return mat;
 }
 
-static void freematrix(double **mat)
-{
-  free(mat[0]);
-  free(mat);
+static void freematrix(double **mat, int nrows) {
+    int row;
+    for (row=0; row<nrows; row++)
+        free(mat[row]);
+    free(mat);
 }
 
 // Compute logarithm of the gamma function
@@ -112,12 +112,12 @@ static double _bincoeff(int n, int k)
 
 static PyObject * _Bas_bincoeff(PyObject *self, PyObject *args)
 {
-	int n, k;
-	double ret;
-	if(!PyArg_ParseTuple(args, "ii", &n, &k))
-		return NULL;
-	ret = _bincoeff(n, k);
-	return Py_BuildValue("d",ret);
+    int n, k;
+    double ret;
+    if(!PyArg_ParseTuple(args, "ii", &n, &k))
+        return NULL;
+    ret = _bincoeff(n, k);
+    return Py_BuildValue("d",ret);
 }
 
 // Find the knot span of the parametric point u. 
@@ -178,19 +178,19 @@ static int _findspan(int n, int p, double u, double *U)
 
 static PyObject * _Bas_findspan(PyObject *self, PyObject *args)
 {
-	int n, p, ret;
-	double u;
-	PyObject *input_U;
-	PyArrayObject  *U;
-	if(!PyArg_ParseTuple(args, "iidO", &n, &p, &u, &input_U))
-		return NULL;
+    int n, p, ret;
+    double u;
+    PyObject *input_U;
+    PyArrayObject  *U;
+    if(!PyArg_ParseTuple(args, "iidO", &n, &p, &u, &input_U))
+        return NULL;
 
-	U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, NPY_DOUBLE, 1, 1);
-	if(U == NULL)
-		return NULL;
+    U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, NPY_DOUBLE, 1, 1);
+    if(U == NULL)
+        return NULL;
 
-	ret = _findspan(n, p, u, (double *)PyArray_DATA(U));
-	return Py_BuildValue("i", ret);
+    ret = _findspan(n, p, u, (double *)PyArray_DATA(U));
+    return Py_BuildValue("i", ret);
 }
 
 // Basis Function. 
@@ -260,29 +260,29 @@ static void _basisfuns(int i, double u, int p, double *U, double *N)
 
 static PyObject * _Bas_basisfuns(PyObject *self, PyObject *args)
 {
-	int i, p;
-	double u;
-	npy_intp dim[2];
-	PyObject *input_U;
-	PyArrayObject *N, *U;
+    int i, p;
+    double u;
+    npy_intp dim[2];
+    PyObject *input_U;
+    PyArrayObject *N, *U;
 
-	if(!PyArg_ParseTuple(args, "iidO", &i, &p, &u, &input_U))
-		return NULL;
+    if(!PyArg_ParseTuple(args, "iidO", &i, &p, &u, &input_U))
+        return NULL;
 
-	U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, NPY_DOUBLE, 1, 1);
-	if(U == NULL)
-		return NULL;
+    U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, NPY_DOUBLE, 1, 1);
+    if(U == NULL)
+        return NULL;
 
-	dim[0] = p+1;
-	dim[1] = 0; 
-	//  N array is p+1 in size
+    dim[0] = p+1;
+    dim[1] = 0; 
+    //  N array is p+1 in size
     N = (PyArrayObject *) PyArray_SimpleNew(1, dim, NPY_DOUBLE);
-	_basisfuns(i, u, p, (double *)PyArray_DATA(U), (double *)PyArray_DATA(N));
-	// printf("*N->data[0]=%g \n", (double *)N->data[0]);
-	// printf("*N->data[1]=%g \n", (double *)N->data[1]);
-	//return (PyObject *)N;
-	// return Py_BuildValue("O", (PyObject *)N );
-	return PyArray_Return(N);
+    _basisfuns(i, u, p, (double *)PyArray_DATA(U), (double *)PyArray_DATA(N));
+    // printf("*N->data[0]=%g \n", (double *)N->data[0]);
+    // printf("*N->data[1]=%g \n", (double *)N->data[1]);
+    //return (PyObject *)N;
+    // return Py_BuildValue("O", (PyObject *)N );
+    return PyArray_Return(N);
 }
 
 static char bspeval__doc__[] =
@@ -332,224 +332,164 @@ static void _bspeval(int d, double *ctrl, int mc, int nc, double *k, int nk, dou
 
 static PyObject * _Bas_bspeval(PyObject *self, PyObject *args)
 {
-	int d;
+    int d;
     npy_intp dim[2], mc, nc, nu;
-	double *ctrldat, *pntdat, *kdat, *udat;
-	PyObject *input_ctrl, *input_k, *input_u;
-	PyArrayObject *ctrl, *k, *u, *pnt;
+    double *ctrldat, *pntdat, *kdat, *udat;
+    PyObject *input_ctrl, *input_k, *input_u;
+    PyArrayObject *ctrl, *k, *u, *pnt;
 
-	if(!PyArg_ParseTuple(args, "iOOO", &d, &input_ctrl, &input_k, &input_u))
-		return NULL;
+    if(!PyArg_ParseTuple(args, "iOOO", &d, &input_ctrl, &input_k, &input_u))
+        return NULL;
 
-	ctrl = (PyArrayObject *) PyArray_ContiguousFromAny(input_ctrl, NPY_DOUBLE, 2, 2);
-	if(ctrl == NULL)
-		return NULL;
-	k = (PyArrayObject *) PyArray_ContiguousFromAny(input_k, NPY_DOUBLE, 1, 1);
-	if(k == NULL)
-		return NULL;
-	u = (PyArrayObject *) PyArray_ContiguousFromAny(input_u, NPY_DOUBLE, 1, 1);
-	if(u == NULL)
-		return NULL;
+    ctrl = (PyArrayObject *) PyArray_ContiguousFromAny(input_ctrl, NPY_DOUBLE, 2, 2);
+    if(ctrl == NULL)
+        return NULL;
+    k = (PyArrayObject *) PyArray_ContiguousFromAny(input_k, NPY_DOUBLE, 1, 1);
+    if(k == NULL)
+        return NULL;
+    u = (PyArrayObject *) PyArray_ContiguousFromAny(input_u, NPY_DOUBLE, 1, 1);
+    if(u == NULL)
+        return NULL;
 
     nu = PyArray_DIM(u, 0);
     mc = PyArray_DIM(ctrl, 0);
     nc = PyArray_DIM(ctrl, 1);
     dim[0] = mc;
     dim[1] = nu;
-	pnt = (PyArrayObject *) PyArray_SimpleNew(2, dim, NPY_DOUBLE);
+    pnt = (PyArrayObject *) PyArray_SimpleNew(2, dim, NPY_DOUBLE);
 
-	ctrldat = (double *)PyArray_DATA(ctrl);
-	pntdat  = (double *)PyArray_DATA(pnt);
-	kdat    = (double *)PyArray_DATA(k);
-	udat    = (double *)PyArray_DATA(u);
-	_bspeval(d, ctrldat, mc, nc, kdat, PyArray_DIM(k, 0), udat, nu, pntdat);
+    ctrldat = (double *)PyArray_DATA(ctrl);
+    pntdat  = (double *)PyArray_DATA(pnt);
+    kdat    = (double *)PyArray_DATA(k);
+    udat    = (double *)PyArray_DATA(u);
+    _bspeval(d, ctrldat, mc, nc, kdat, PyArray_DIM(k, 0), udat, nu, pntdat);
 
-	Py_DECREF(ctrl);
-	Py_DECREF(k);
-	Py_DECREF(u);
-	return PyArray_Return(pnt);
+    Py_DECREF(ctrl);
+    Py_DECREF(k);
+    Py_DECREF(u);
+    return PyArray_Return(pnt);
 }
 
 static char dersbasisfuns__doc__[] =
-"// Compute Non-zero basis functions and their derivatives.\n\
-//\n\
-// INPUT:\n\
-//\n\
-//   d  - spline degree         integer\n\
-//   k  - knot sequence         double  vector(nk)\n\
-//   u  - parametric point      double\n\
-//   s  - knot span             integer\n\
-//   n  - number of derivatives integer\n\
-//\n\
-// OUTPUT:\n\
-//\n\
-//   dN -  Basis functions      double  matrix(n+1,d+1)\n\
-//         and derivatives upto the nth derivative (n < d)\n\
-//\n\
-// Algorithm A2.3 from 'The NURBS BOOK' pg72.\n\
-\n";
-// Compute Non-zero basis functions and their derivatives.
-//
-// INPUT:
-//
-//   d  - spline degree         integer
-//   k  - knot sequence         double  vector(nk)
-//   u  - parametric point      double
-//   s  - knot span             integer
-//   n  - number of derivatives integer
-//
-// OUTPUT:
-//
-//   dN -  Basis functions      double  matrix(n+1,d+1)
-//         and derivatives upto the nth derivative (n < d)
-//
-// Algorithm A2.3 from 'The NURBS BOOK' pg72.
-static void _dersbasisfuns(int d, double *k, int nk, double u, int s,int n, double **ders)
+" Compute Non-zero basis functions and their derivatives.\n\n\
+ INPUT:\n\n\
+   d  - spline degree          integer\n\
+   k  - knot sequence          double  vector(nk)\n\
+   u  - parametric point       double\n\
+   s  - knot span              integer\n\
+   n  - number of derivatives  integer\n\n\
+ OUTPUT:\n\n\
+   dN - Basis functions        double  matrix(n+1,d+1)\n\
+        and derivatives up\n\
+        to the nth derivative\n\
+        (n < d)\n\n\
+ Algorithm A2.3 from 'The NURBS BOOK' pg72.\n";
+
+static void _dersbasisfuns(int d, double *k, int nk, double u, int s, int n, double *ders)
 {
-  int i,j,r,s1,s2,rk,pk,j1,j2;
-  double temp, saved, der;
-  double **ndu, **a, *left, *right;
+    // ders dimensions: (n+1, d+1)
 
-  ndu = matrix(d+1, d+1);
-  a = matrix(d+1, 2);
-  left = (double *) malloc((d+1)*sizeof(double));
-  right = (double *) malloc((d+1)*sizeof(double));
+    int i,j,r,s1,s2,rk,pk,j1,j2,dp1;
+    double temp, saved, der;
+    double **ndu, **a, *left, *right;
 
-  ndu[0][0] = 1.0;
-  
-  // debug:
-  //printf("d=%d, nk=%d, u=%g, s/i=%d, n/k=%d\n",d,nk,u,s,n);
-  //printf("k[0]=%g k[-1]=%g\n",k[0], k[nk-1]);
-  for( j = 1; j <= d; j++ )
-  {
-    left[j] = u - k[s+1-j];
-    right[j] = k[s+j]-u;
-    saved = 0.0;
-    for( r = 0; r < j; r++ )
-    {
-	  //printf("r = %d\n",r);
-      ndu[r][j] = right[r+1] + left[j-r];
-      temp = ndu[j-1][r]/ndu[r][j];
-      
-      ndu[j][r] = saved + right[r+1]*temp;
-      saved = left[j-r]*temp;
+    dp1 = d+1;
+    ndu = matrix(d+1, d+1);
+    a = matrix(2, d+1);
+    left = (double *) malloc((d+1)*sizeof(double));
+    right = (double *) malloc((d+1)*sizeof(double));
+
+    ndu[0][0] = 1.0;
+
+    for (j=1; j<=d; j++) {
+        left[j] = u - k[s+1-j];
+        right[j] = k[s+j]-u;
+        saved = 0.0;
+        for (r=0; r<j; r++) {
+            ndu[j][r] = right[r+1] + left[j-r];
+            temp = ndu[r][j-1]/ndu[j][r];
+
+            ndu[r][j] = saved + right[r+1]*temp;
+            saved = left[j-r]*temp;
+        }
+        ndu[j][j] = saved;
     }
-    ndu[j][j] = saved;
-	// ok same. printf("%g ",saved);
-  }
-// identical  for (j=0; j<=d; j++)
-// identical	  for (r=0; r<=d; r++)
-// identical		  printf("ndu[%d,%d] = %g\n",j,r,ndu[j][r]);
 
- //  printf("ndu %g\n", ndu[2][2]);
- //  printf("dders %g\n",ders[1][0]);
-  for( j = 0; j <= d; j++ )
-    ders[j][0] = ndu[d][j];
+    for (j=0; j<=d; j++)
+        ders[0*dp1+j] = ndu[j][d];
 
-  for( r = 0; r <= d; r++ )
-  {
-    //printf("r=%d\n",r);
-    s1 = 0;    s2 = 1;
-    a[0][0] = 1.0;
+    for (r=0; r<=d; r++) {
+        s1 = 0; s2 = 1;
+        a[0][0] = 1.0;
 
-    for( i = 1; i <= n; i++ )
-    {
-	//   if (r == 2)
-	// 	  printf("i=%d\n",i);
-	  //printf("i/l = %d\n",i);
-      der = 0.0;
-      rk = r-i;  pk = d-i;
-      
-      if( r >= i )
-      {
-        a[0][s2] = a[0][s1] / ndu[rk][pk+1];
-        der = a[0][s2] * ndu[pk][rk];
-  		//printf("der1 %g\n",der);
-      }  
-      if( rk >= -1 )
-        j1 = 1;
-      else
-        j1 = -rk;  
-      if( r-1 <= pk ) //r=0: i=1 --: -1 <= 2-1: true. j2=0
-        j2 = i-1;
-      else
-		  // BUG
-        //j2 = der-r;  
-        j2 = d-r;  
+        for (i = 1; i <= n; i++) {
+            der = 0.0;
+            rk = r-i;  pk = d-i;
 
-	  //printf("j1=%d, j2=%d\n", j1, j2);
-      for( j = j1; j <= j2; j++ )
-      {
-        a[j][s2] = (a[j][s1] - a[j-1][s1]) / ndu[rk+j][pk+1];
-        der += a[j][s2] * ndu[pk][rk+j];
-  		//printf("der2 %g\n",der);
-      }  
-      if( r <= pk )
-      {
-		//printf("rpk: r=%d, pk=%d, -a[%d][%d] = %g\n",r, pk, s1, i-1, -a[i-1][s1]);
-        a[i][s2] = -a[i-1][s1] / ndu[r][pk+1];
-        der += a[i][s2] * ndu[pk][r];
-      }  
-      ders[r][i] = der;
-	  //printf("ddddder %g\n", der);
-      j = s1; s1 = s2; s2 = j;
-    }        
-  }
+            if (r >= i) {
+                a[s2][0] = a[s1][0] / ndu[pk+1][rk];
+                der = a[s2][0] * ndu[rk][pk];
+            }  
+            if (rk >= -1)
+                j1 = 1;
+            else
+                j1 = -rk;
+            if (r-1 <= pk)
+                j2 = i-1;
+            else
+                j2 = d-r;
+
+            for (j = j1; j <= j2; j++) {
+                a[s2][j] = (a[s1][j] - a[s1][j-1]) / ndu[pk+1][rk+j];
+                der += a[s2][j] * ndu[rk+j][pk];
+            }
+            if (r <= pk) {
+                a[s2][i] = -a[s1][i-1] / ndu[pk+1][r];
+                der += a[s2][i] * ndu[r][pk];
+            }
+            ders[i*dp1+r] = der;
+            j = s1; s1 = s2; s2 = j;
+        }        
+    }
   
-  r = d;
-  for( i = 1; i <= n; i++ )
-  {
-    for( j = 0; j <= d; j++ )
-      ders[j][i] *= r;
-    r *= d-i;
-  }    
-  //printf("ders %g\n",ders[0][0]);
+    r = d;
+    for (i = 1; i <= n; i++) {
+        for (j = 0; j <= d; j++)
+            ders[i*dp1+j] *= r;
+        r *= d-i;
+    }
 
-  freematrix(ndu);
-  freematrix(a);
-  free(left);
-  free(right);
+    freematrix(ndu, d+1);
+    freematrix(a, 2);
+    free(left);
+    free(right);
 }
 
 static PyObject * _Bas_dersbasisfuns(PyObject *self, PyObject *args)
 {
-	int d, s, k, ret, n; 
-	double u;
-	double **pntmat;
-	int dim[2];
-	PyObject *input_U;
-	PyArrayObject *dN, *U;
+    int d, s, nk, n;
+    double u;
+    double *udat, *dNdat;
+    npy_intp dim[2];
+    PyObject *input_U;
+    PyArrayObject *dN, *U;
 
+    if (!PyArg_ParseTuple(args, "iOdii", &d, &input_U, &u, &s, &n))
+        return NULL;
 
-	ret=-1;
-    ret = PyArg_ParseTuple(args, "iOdiii", &s, &input_U, &u, &d, &k, &n);
-	if(!ret)
-	{
-		//printf("s/i=%d, u=%g, p/d=%d, k=%d, ret=%d\n", s, u, d, k, ret);
-		return NULL;
-	}
-	//printf("ok: s/i=%d, u=%g, p/d=%d, k=%d, ret=%d, n/nk=%d\n", s, u, d, k, ret, n);
+    U = (PyArrayObject *) PyArray_ContiguousFromAny(input_U, NPY_DOUBLE, 1, 1);
+    if (U == NULL)
+        return NULL;
+    udat = (double *)PyArray_DATA(U);
 
-	U = (PyArrayObject *) PyArray_ContiguousFromObject(input_U, PyArray_DOUBLE, 1, 1);
-	if(U == NULL)
-		return NULL;
+    nk = PyArray_DIM(U, 0);
+    dim[0] = n+1; 
+    dim[1] = d+1;
+    dN = (PyArrayObject *) PyArray_SimpleNew(2, dim, NPY_DOUBLE);
+    dNdat = (double *)PyArray_DATA(dN);
 
-	dim[0] = d+1; 
-	dim[1] = k+1;
-	//  dN array is p+1 in size
-	dN = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
-	pntmat = vec2mat(dN->data, d+1, k+1);
-
-	
-	_dersbasisfuns(d, (double *)U->data, n, u, s, k, pntmat);
-	//printf("dN->data[0][0] = %g\n",pntmat[1][1]);
-	free(pntmat);
-//static void _dersbasisfuns(int d, double *k, int nk, double u, int s,int n, double **ders)
-	// printf("*dN->data[0]=%g \n", (double *)dN->data[0]);
-	// printf("*dN->data[1]=%g \n", (double *)dN->data[1]);
-	//return (PyObject *)dN;
-	// return Py_BuildValue("O", (PyObject *)dN );
-	return PyArray_Return(dN);
+    _dersbasisfuns(d, udat, nk, u, s, n, dNdat);
+    return PyArray_Return(dN);
 }
 
 static char bspdeval__doc__[] =
@@ -570,61 +510,67 @@ OUTPUT:\n\
 Modified version of Algorithm A3.2 from 'The NURBS BOOK' pg93.\n\
 \n";
 
-static void _bspdeval(int d, double **c, int mc, int nc, double *k, int nk, 
-             double u, int n, double **p)
+static void _bspdeval(int d, double *c, int mc, int nc, double *k, int nk, 
+             double u, int n, double *p)
 {
-  int i, l, j, s;
-  int du = min(d,n);
-  double **dN;   
+    int row, col, j, s, dp1, np1;
+    int du = min(d,n);
+    double *dNdat;
+    PyArrayObject *dN;
+    npy_intp dim[2];
 
-  dN = matrix(d+1, n+1);
+    np1 = n+1;
+    dp1 = d+1;
+    dim[0] = np1;
+    dim[1] = dp1;
 
-  for (l = d+1; l <= n; l++)
-    for (i = 0; i < mc; i++)
-      p[l][i] = 0.0;
+    dN = (PyArrayObject *) PyArray_SimpleNew(2, dim, NPY_DOUBLE);
+    dNdat = (double *)PyArray_DATA(dN);
 
-  s = _findspan(nc-1, d, u, k);
-  _dersbasisfuns(d, k, nk, u, s, n, dN);
+    for (col = d+1; col < np1; col++)
+        for (row = 0; row < mc; row++)
+            p[row*np1 + col] = 0.0;
 
-  for (l = 0; l <= du; l++)
-  {
-    for (i = 0; i < mc; i++)
-    {
-      p[l][i] = 0.0;
-      for (j = 0; j <= d; j++)
-        p[l][i] += dN[l][j] * c[s-d+j][i];
+    s = _findspan(nc-1, d, u, k);
+    _dersbasisfuns(d, k, nk, u, s, n, dNdat);
+
+    for (col = 0; col <= du; col++) {
+        for (row = 0; row < mc; row++) {
+            p[row*np1 + col] = 0.0;
+            for (j = 0; j <= d; j++)
+                p[row*np1 + col] += dNdat[col*dp1+j] * c[row*nc+s-d+j];
+        }
     }
-  }
-  freematrix(dN); 
+    PyArray_free(dN);
 }
 
 static PyObject * _Bas_bspdeval(PyObject *self, PyObject *args)
 {
-	int d, mc, nc, n, dim[2];
-	double u, **ctrlmat, **pntmat;
-	PyObject *input_ctrl, *input_k;
-	PyArrayObject *ctrl, *k, *pnt;
-	if(!PyArg_ParseTuple(args, "iOOdi", &d, &input_ctrl, &input_k, &u, &n))
-		return NULL;
-	ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
-	if(ctrl == NULL)
-		return NULL;
-	k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
-	if(k == NULL)
-		return NULL;
-	mc = ctrl->dimensions[0];
-	nc = ctrl->dimensions[1];
-	dim[0] = mc;
-	dim[1] = n + 1;
-	pnt = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
-	ctrlmat = vec2mat(ctrl->data, mc, nc);
-	pntmat = vec2mat(pnt->data, mc, n + 1);
-	_bspdeval(d, ctrlmat, mc, nc, (double *)k->data, k->dimensions[0], u, n, pntmat);
-	free(pntmat);
-	free(ctrlmat);
-	Py_DECREF(ctrl);
-	Py_DECREF(k);
-	return PyArray_Return(pnt);
+    int d, n;
+    npy_intp dim[2], mc, nc;
+    double u, *ctrldat, *pntdat, *kdat;
+    PyObject *input_ctrl, *input_k;
+    PyArrayObject *ctrl, *k, *pnt;
+    if(!PyArg_ParseTuple(args, "iOOdi", &d, &input_ctrl, &input_k, &u, &n))
+        return NULL;
+    ctrl = (PyArrayObject *) PyArray_ContiguousFromAny(input_ctrl, NPY_DOUBLE, 2, 2);
+    if(ctrl == NULL)
+        return NULL;
+    k = (PyArrayObject *) PyArray_ContiguousFromAny(input_k, NPY_DOUBLE, 1, 1);
+    if(k == NULL)
+        return NULL;
+    mc = PyArray_DIM(ctrl, 0);
+    nc = PyArray_DIM(ctrl, 1);
+    dim[0] = mc;
+    dim[1] = n + 1;
+    pnt = (PyArrayObject *) PyArray_SimpleNew(2, dim, NPY_DOUBLE);
+    ctrldat = (double *)PyArray_DATA(ctrl);
+    pntdat  = (double *)PyArray_DATA(pnt);
+    kdat    = (double *)PyArray_DATA(k);
+    _bspdeval(d, ctrldat, mc, nc, kdat, PyArray_DIM(k, 0), u, n, pntdat);
+    Py_DECREF(ctrl);
+    Py_DECREF(k);
+    return PyArray_Return(pnt);
 }
 
 static char bspkntins__doc__[] =
@@ -703,39 +649,39 @@ static void _bspkntins(int d, double **ctrl, int mc, int nc, double *k, int nk,
 
 static PyObject * _Bas_bspkntins(PyObject *self, PyObject *args)
 {
-	int d, mc, nc, nk, nu, dim[2];
-	double **ctrlmat, **icmat;
-	PyObject *input_ctrl, *input_k, *input_u;
-	PyArrayObject *ctrl, *k, *u, *ic, *ik;
-	if(!PyArg_ParseTuple(args, "iOOO", &d, &input_ctrl, &input_k, &input_u))
-		return NULL;
-	ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
-	if(ctrl == NULL)
-		return NULL;
-	k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
-	if(k == NULL)
-		return NULL;
-	u = (PyArrayObject *) PyArray_ContiguousFromObject(input_u, PyArray_DOUBLE, 1, 1);
-	if(u == NULL)
-		return NULL;
-	mc = ctrl->dimensions[0];
-	nc = ctrl->dimensions[1];
-	nk = k->dimensions[0];
-	nu = u->dimensions[0];
-	dim[0] = mc;
-	dim[1] = nc + nu;
-	ic = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
-	ctrlmat = vec2mat(ctrl->data, mc, nc);
-	icmat = vec2mat(ic->data, mc, nc + nu);
-	dim[0] = nk + nu;
-	ik = (PyArrayObject *) PyArray_FromDims(1, dim, PyArray_DOUBLE);
-	_bspkntins(d, ctrlmat, mc, nc, (double *)k->data, nk, (double *)u->data, nu, icmat, (double *)ik->data);
-	free(icmat);
-	free(ctrlmat);
-	Py_DECREF(ctrl);
-	Py_DECREF(k);
-	Py_DECREF(u);
-	return Py_BuildValue("(OO)", (PyObject *)ic, (PyObject *)ik);
+    int d, mc, nc, nk, nu, dim[2];
+    double **ctrlmat, **icmat;
+    PyObject *input_ctrl, *input_k, *input_u;
+    PyArrayObject *ctrl, *k, *u, *ic, *ik;
+    if(!PyArg_ParseTuple(args, "iOOO", &d, &input_ctrl, &input_k, &input_u))
+        return NULL;
+    ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
+    if(ctrl == NULL)
+        return NULL;
+    k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
+    if(k == NULL)
+        return NULL;
+    u = (PyArrayObject *) PyArray_ContiguousFromObject(input_u, PyArray_DOUBLE, 1, 1);
+    if(u == NULL)
+        return NULL;
+    mc = ctrl->dimensions[0];
+    nc = ctrl->dimensions[1];
+    nk = k->dimensions[0];
+    nu = u->dimensions[0];
+    dim[0] = mc;
+    dim[1] = nc + nu;
+    ic = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
+    ctrlmat = vec2mat(ctrl->data, mc, nc);
+    icmat = vec2mat(ic->data, mc, nc + nu);
+    dim[0] = nk + nu;
+    ik = (PyArrayObject *) PyArray_FromDims(1, dim, PyArray_DOUBLE);
+    _bspkntins(d, ctrlmat, mc, nc, (double *)k->data, nk, (double *)u->data, nu, icmat, (double *)ik->data);
+    free(icmat);
+    free(ctrlmat);
+    Py_DECREF(ctrl);
+    Py_DECREF(k);
+    Py_DECREF(u);
+    return Py_BuildValue("(OO)", (PyObject *)ic, (PyObject *)ik);
 }
 
 static char bspdegelev__doc__[] =
@@ -953,43 +899,43 @@ static void _bspdegelev(int d, double **ctrl, int mc, int nc, double *k, int nk,
   
   *nh = mh - ph - 1;
 
-  freematrix(bezalfs);
-  freematrix(bpts);
-  freematrix(ebpts);
-  freematrix(Nextbpts);
+  freematrix(bezalfs, d+1);
+  freematrix(bpts, mc);
+  freematrix(ebpts, mc);
+  freematrix(Nextbpts, mc);
   free(alfs);
 }
 
 static PyObject * _Bas_bspdegelev(PyObject *self, PyObject *args)
 {
-	int d, mc, nc, nk, t, nh, dim[2];
-	double **ctrlmat, **icmat;
-	PyObject *input_ctrl, *input_k;
-	PyArrayObject *ctrl, *k, *ic, *ik;
-	if(!PyArg_ParseTuple(args, "iOOi", &d, &input_ctrl, &input_k, &t))
-		return NULL;
-	ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
-	if(ctrl == NULL)
-		return NULL;
-	k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
-	if(k == NULL)
-		return NULL;
-	mc = ctrl->dimensions[0];
-	nc = ctrl->dimensions[1];
-	nk = k->dimensions[0];
-	dim[0] = mc;
-	dim[1] = nc*(t + 1);
-	ic = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
-	ctrlmat = vec2mat(ctrl->data, mc, nc);
-	icmat = vec2mat(ic->data, mc, nc*(t + 1));
-	dim[0] = (t + 1)*nk;
-	ik = (PyArrayObject *) PyArray_FromDims(1, dim, PyArray_DOUBLE);
-	_bspdegelev(d, ctrlmat, mc, nc, (double *)k->data, nk, t, &nh, icmat, (double *)ik->data);
-	free(icmat);
-	free(ctrlmat);
-	Py_DECREF(ctrl);
-	Py_DECREF(k);
-	return Py_BuildValue("(OOi)", (PyObject *)ic, (PyObject *)ik, nh);
+    int d, mc, nc, nk, t, nh, dim[2];
+    double **ctrlmat, **icmat;
+    PyObject *input_ctrl, *input_k;
+    PyArrayObject *ctrl, *k, *ic, *ik;
+    if(!PyArg_ParseTuple(args, "iOOi", &d, &input_ctrl, &input_k, &t))
+        return NULL;
+    ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
+    if(ctrl == NULL)
+        return NULL;
+    k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
+    if(k == NULL)
+        return NULL;
+    mc = ctrl->dimensions[0];
+    nc = ctrl->dimensions[1];
+    nk = k->dimensions[0];
+    dim[0] = mc;
+    dim[1] = nc*(t + 1);
+    ic = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
+    ctrlmat = vec2mat(ctrl->data, mc, nc);
+    icmat = vec2mat(ic->data, mc, nc*(t + 1));
+    dim[0] = (t + 1)*nk;
+    ik = (PyArrayObject *) PyArray_FromDims(1, dim, PyArray_DOUBLE);
+    _bspdegelev(d, ctrlmat, mc, nc, (double *)k->data, nk, t, &nh, icmat, (double *)ik->data);
+    free(icmat);
+    free(ctrlmat);
+    Py_DECREF(ctrl);
+    Py_DECREF(k);
+    return Py_BuildValue("(OOi)", (PyObject *)ic, (PyObject *)ik, nh);
 }
 
 static char bspbezdecom__doc__[] =
@@ -1079,69 +1025,69 @@ static void _bspbezdecom(int d, double **ctrl, int mc, int nc, double *k, int nk
 
 static PyObject * _Bas_bspbezdecom(PyObject *self, PyObject *args)
 {
-	int i, b, c, d, mc, nc, nk, m,  dim[2];
-	double **ctrlmat, **icmat, *ks;
-	PyObject *input_ctrl, *input_k;
-	PyArrayObject *ctrl, *k, *ic;
-	if(!PyArg_ParseTuple(args, "iOO", &d, &input_ctrl, &input_k))
-		return NULL;
-	ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
-	if(ctrl == NULL)
-		return NULL;
-	k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
-	if(k == NULL)
-		return NULL;
-	mc = ctrl->dimensions[0];
-	nc = ctrl->dimensions[1];
-	nk = k->dimensions[0];
-	
-	i = d + 1;
-	c = 0;
-	m = nk - d - 1;
-	while (i < m)
-	{
-		b = 1;
-		while (i < m && *(double *)(k->data + i * k->strides[0]) == *(double *)(k->data + (i + 1) * k->strides[0]))
-		{
-			b++;
-			i++;
-		}
-		if(b < d) 
-			c = c + (d - b); 
-		i++;
-	}
-	dim[0] = mc;
-	dim[1] = nc+c;
-	ic = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
-	ctrlmat = vec2mat(ctrl->data, mc, nc);
-	icmat = vec2mat(ic->data, mc, nc+c);
-	_bspbezdecom(d, ctrlmat, mc, nc, (double *)k->data, nk, icmat);
-	free(icmat);
-	free(ctrlmat); 
-	Py_DECREF(ctrl);
-	Py_DECREF(k); 
-	return Py_BuildValue("O", ic);
+    int i, b, c, d, mc, nc, nk, m,  dim[2];
+    double **ctrlmat, **icmat, *ks;
+    PyObject *input_ctrl, *input_k;
+    PyArrayObject *ctrl, *k, *ic;
+    if(!PyArg_ParseTuple(args, "iOO", &d, &input_ctrl, &input_k))
+        return NULL;
+    ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
+    if(ctrl == NULL)
+        return NULL;
+    k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
+    if(k == NULL)
+        return NULL;
+    mc = ctrl->dimensions[0];
+    nc = ctrl->dimensions[1];
+    nk = k->dimensions[0];
+    
+    i = d + 1;
+    c = 0;
+    m = nk - d - 1;
+    while (i < m)
+    {
+        b = 1;
+        while (i < m && *(double *)(k->data + i * k->strides[0]) == *(double *)(k->data + (i + 1) * k->strides[0]))
+        {
+            b++;
+            i++;
+        }
+        if(b < d) 
+            c = c + (d - b); 
+        i++;
+    }
+    dim[0] = mc;
+    dim[1] = nc+c;
+    ic = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
+    ctrlmat = vec2mat(ctrl->data, mc, nc);
+    icmat = vec2mat(ic->data, mc, nc+c);
+    _bspbezdecom(d, ctrlmat, mc, nc, (double *)k->data, nk, icmat);
+    free(icmat);
+    free(ctrlmat); 
+    Py_DECREF(ctrl);
+    Py_DECREF(k); 
+    return Py_BuildValue("O", ic);
 }
 
 static PyMethodDef _Bas_methods[] =
 {
-	{"bincoeff", _Bas_bincoeff, METH_VARARGS, bincoeff__doc__},
-	{"bspeval", _Bas_bspeval, METH_VARARGS, bspeval__doc__},
-	{"bspdeval", _Bas_bspdeval, METH_VARARGS, bspdeval__doc__},
-	{"bspkntins", _Bas_bspkntins, METH_VARARGS, bspkntins__doc__},
-	{"bspdegelev", _Bas_bspdegelev, METH_VARARGS, bspdegelev__doc__},
-	{"bspbezdecom", _Bas_bspbezdecom, METH_VARARGS, bspbezdecom__doc__},
-	// se:
-	{"basisfuns", _Bas_basisfuns, METH_VARARGS, basisfuns__doc__},
-	{"dersbasisfuns", _Bas_dersbasisfuns, METH_VARARGS, dersbasisfuns__doc__},
-	{"findspan", _Bas_findspan, METH_VARARGS, findspan__doc__},
-	{NULL, NULL}
+    {"bincoeff", _Bas_bincoeff, METH_VARARGS, bincoeff__doc__},
+    {"bspeval", _Bas_bspeval, METH_VARARGS, bspeval__doc__},
+    {"bspdeval", _Bas_bspdeval, METH_VARARGS, bspdeval__doc__},
+    {"bspkntins", _Bas_bspkntins, METH_VARARGS, bspkntins__doc__},
+    {"bspdegelev", _Bas_bspdegelev, METH_VARARGS, bspdegelev__doc__},
+    {"bspbezdecom", _Bas_bspbezdecom, METH_VARARGS, bspbezdecom__doc__},
+    // se:
+    {"basisfuns", _Bas_basisfuns, METH_VARARGS, basisfuns__doc__},
+    {"dersbasisfuns", _Bas_dersbasisfuns, METH_VARARGS, dersbasisfuns__doc__},
+    {"findspan", _Bas_findspan, METH_VARARGS, findspan__doc__},
+    {NULL, NULL}
 };
 
 PyMODINIT_FUNC init_Bas(void)
 {
-	PyObject *m;
-	m = Py_InitModule3("_Bas", _Bas_methods, _Bas_module__doc__);
-	import_array();
+    PyObject *m;
+    m = Py_InitModule3("_Bas", _Bas_methods, _Bas_module__doc__);
+    import_array();
 }
-	
+    

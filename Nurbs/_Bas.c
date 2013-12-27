@@ -591,93 +591,99 @@ OUTPUT:\n\
 Modified version of Algorithm A5.4 from 'The NURBS BOOK' pg164.\n\
 \n";
 
-static void _bspkntins(int d, double **ctrl, int mc, int nc, double *k, int nk, 
-              double *u, int nu, double **ictrl, double *ik)
+static void _bspkntins(int d, double *ctrl, int mc, int nc, double *k, int nk, 
+              double *u, int nu, double *ictrl, double *ik)
 {
-  int a, b, r, l, i, j, m, n, s, q, ind;
-  double alfa;
+    // ctrl dimensions:  (mc, nc)
+    // ictrl dimensions: (mc, nci)
 
-  n = nc - 1;
-  r = nu - 1;
+    int a, b, r, l, i, j, m, n, s, q, ind;
+    const int nci = nc+nu;
+    double alfa;
 
-  m = n + d + 1;
-  a = _findspan(n, d, u[0], k);
-  b = _findspan(n, d, u[r], k);
-  ++b;
+    n = nc - 1;
+    r = nu - 1;
 
-  for (q = 0; q < mc; q++)
-  {
-    for (j = 0; j <= a-d; j++) ictrl[q][j] = ctrl[q][j];
-    for (j = b-1; j <= n; j++) ictrl[q][j+r+1] = ctrl[q][j];
-  }
-  for (j = 0; j <= a; j++)   ik[j] = k[j];
-  for (j = b+d; j <= m; j++) ik[j+r+1] = k[j];
+    m = n + d + 1;
+    a = _findspan(n, d, u[0], k);
+    b = _findspan(n, d, u[r], k);
+    ++b;
 
-  i = b + d - 1;
-  s = b + d + r;
-  for (j = r; j >= 0; j--)
-  {
-    while (u[j] <= k[i] && i > a)
-    {
-      for (q = 0; q < mc; q++)
-        ictrl[q][s-d-1] = ctrl[q][i-d-1];
-      ik[s] = k[i];
-      --s;
-      --i;
+    for (q = 0; q < mc; q++) {
+        for (j = 0; j <= a-d; j++) ictrl[q*nci+j] = ctrl[q*nc+j];
+        for (j = b-1; j <= n; j++) ictrl[q*nci+j+r+1] = ctrl[q*nc+j];
     }
-    for (q = 0; q < mc; q++)
-      ictrl[q][s-d-1] = ictrl[q][s-d];
-    for (l = 1; l <= d; l++)
-    {
-      ind = s - d + l;
-      alfa = ik[s+l] - u[j];
-      if (fabs(alfa) == 0.0)
-        for (q = 0; q < mc; q++)
-          ictrl[q][ind-1] = ictrl[q][ind];
-      else
-      {
-        alfa /= (ik[s+l] - k[i-d+l]);
-        for (q = 0; q < mc; q++)
-          ictrl[q][ind-1] = alfa*ictrl[q][ind-1]+(1.0-alfa)*ictrl[q][ind];
-      }
-    }
+    for (j = 0; j <= a; j++)   ik[j] = k[j];
+    for (j = b+d; j <= m; j++) ik[j+r+1] = k[j];
 
-    ik[s] = u[j];
-    --s;
-  }
+    i = b + d - 1;
+    s = b + d + r;
+    for (j = r; j >= 0; j--) {
+        while (u[j] <= k[i] && i > a) {
+            for (q = 0; q < mc; q++)
+                ictrl[q*nci+s-d-1] = ctrl[q*nc+i-d-1];
+            ik[s] = k[i];
+            --s;
+            --i;
+        }
+        for (q = 0; q < mc; q++)
+           ictrl[q*nci+s-d-1] = ictrl[q*nci+s-d];
+        for (l = 1; l <= d; l++) {
+            ind = s - d + l;
+            alfa = ik[s+l] - u[j];
+            if (fabs(alfa) == 0.0)
+                for (q = 0; q < mc; q++)
+                    ictrl[q*nci+ind-1] = ictrl[q*nci+ind];
+            else {
+                alfa /= (ik[s+l] - k[i-d+l]);
+                for (q = 0; q < mc; q++)
+                    ictrl[q*nci+ind-1] = alfa*ictrl[q*nci+ind-1] + (1.0-alfa)*ictrl[q*nci+ind];
+            }
+        }
+
+        ik[s] = u[j];
+        --s;
+    }
 }
 
 static PyObject * _Bas_bspkntins(PyObject *self, PyObject *args)
 {
-    int d, mc, nc, nk, nu, dim[2];
-    double **ctrlmat, **icmat;
+    int d;
+    npy_intp mc, nc, nk, nu, dim[2];
+    //double **ctrlmat, **icmat;
+    double *ctrldat, *icdat, *kdat, *ikdat, *udat;
     PyObject *input_ctrl, *input_k, *input_u;
     PyArrayObject *ctrl, *k, *u, *ic, *ik;
     if(!PyArg_ParseTuple(args, "iOOO", &d, &input_ctrl, &input_k, &input_u))
         return NULL;
-    ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
+    ctrl = (PyArrayObject *) PyArray_ContiguousFromAny(input_ctrl, NPY_DOUBLE, 2, 2);
     if(ctrl == NULL)
         return NULL;
-    k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
+    k = (PyArrayObject *) PyArray_ContiguousFromAny(input_k, NPY_DOUBLE, 1, 1);
     if(k == NULL)
         return NULL;
-    u = (PyArrayObject *) PyArray_ContiguousFromObject(input_u, PyArray_DOUBLE, 1, 1);
+    u = (PyArrayObject *) PyArray_ContiguousFromAny(input_u, NPY_DOUBLE, 1, 1);
     if(u == NULL)
         return NULL;
-    mc = ctrl->dimensions[0];
-    nc = ctrl->dimensions[1];
-    nk = k->dimensions[0];
-    nu = u->dimensions[0];
+    mc = PyArray_DIM(ctrl, 0);
+    nc = PyArray_DIM(ctrl, 1);
+    nk = PyArray_DIM(k, 0);
+    nu = PyArray_DIM(u, 0);
     dim[0] = mc;
     dim[1] = nc + nu;
-    ic = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
-    ctrlmat = vec2mat(ctrl->data, mc, nc);
-    icmat = vec2mat(ic->data, mc, nc + nu);
+    ic = (PyArrayObject *) PyArray_SimpleNew(2, dim, NPY_DOUBLE);
     dim[0] = nk + nu;
-    ik = (PyArrayObject *) PyArray_FromDims(1, dim, PyArray_DOUBLE);
-    _bspkntins(d, ctrlmat, mc, nc, (double *)k->data, nk, (double *)u->data, nu, icmat, (double *)ik->data);
-    free(icmat);
-    free(ctrlmat);
+    ik = (PyArrayObject *) PyArray_SimpleNew(1, dim, NPY_DOUBLE);
+    //ctrlmat = vec2mat(ctrl->data, mc, nc);
+    //icmat = vec2mat(ic->data, mc, nc + nu);
+    ctrldat = (double *)PyArray_DATA(ctrl);
+    icdat   = (double *)PyArray_DATA(ic);
+    kdat    = (double *)PyArray_DATA(k);
+    ikdat   = (double *)PyArray_DATA(ik);
+    udat    = (double *)PyArray_DATA(u);
+    _bspkntins(d, ctrldat, mc, nc, kdat, nk, udat, nu, icdat, ikdat);
+    //free(icmat);
+    //free(ctrlmat);
     Py_DECREF(ctrl);
     Py_DECREF(k);
     Py_DECREF(u);

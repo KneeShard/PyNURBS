@@ -1,5 +1,5 @@
 #include "Python.h"
-//#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include "numpy/arrayobject.h"
 #include <math.h>
 
@@ -31,18 +31,6 @@ static char _Bas_module__doc__[] = "_Bas module. Version 0.1\n\
 \n\
 This module implements low level NURBS functions.\n\
 \n";
-
-static double **vec2mat(double *vec, int nrows, int ncols) 
-{
-  int row;
-  double **mat;
-
-  mat = (double**) malloc (nrows*sizeof(double*));
-  mat[0] = vec;
-  for (row = 1; row < nrows; row++)
-    mat[row] = mat[row-1] + ncols;  
-  return mat;
-}
 
 static double **matrix(int nrows, int ncols) 
 {

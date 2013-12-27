@@ -704,11 +704,14 @@ OUTPUT:\n\
 Modified version of Algorithm A5.9 from 'The NURBS BOOK' pg206.\n\
 \n";
 
-static void _bspdegelev(int d, double **ctrl, int mc, int nc, double *k, int nk, 
-               int t, int *nh, double **ictrl, double *ik)
+static void _bspdegelev(int d, double *ctrl, int mc, int nc, double *k, int nk, 
+               int t, int *nh, double *ictrl, double *ik)
 {
+    // ctrl dimensions:  (mc, nc)
+    // ictrl dimensions: (mc, nci)
   int i, j, q, s, m, ph, ph2, mpi, mh, r, a, b, cind, oldr, mul;
   int n, lbz, rbz, save, tr, kj, first, kind, last, bet, ii;
+  const int nci = nc*(t+1);
   double inv, ua, ub, numer, den, alf, gam;
   double **bezalfs, **bpts, **ebpts, **Nextbpts, *alfs; 
 
@@ -751,7 +754,7 @@ static void _bspdegelev(int d, double **ctrl, int mc, int nc, double *k, int nk,
   cind = 1;
   ua = k[0];
   for (ii = 0; ii < mc; ii++)
-    ictrl[ii][0] = ctrl[ii][0];
+    ictrl[ii*nci+0] = ctrl[ii*nc+0];
   
   for (i = 0; i <= ph; i++)
     ik[i] = ua;
@@ -759,7 +762,7 @@ static void _bspdegelev(int d, double **ctrl, int mc, int nc, double *k, int nk,
   // initialise first bezier seg
   for (i = 0; i <= d; i++)
     for (ii = 0; ii < mc; ii++)
-      bpts[ii][i] = ctrl[ii][i];  
+      bpts[ii][i] = ctrl[ii*nc+i];
 
   // big loop thru knot vector
   while (b < m)
@@ -840,8 +843,8 @@ static void _bspdegelev(int d, double **ctrl, int mc, int nc, double *k, int nk,
           {
             alf = (ub-ik[i])/(ua-ik[i]);
             for (ii = 0; ii < mc; ii++)
-              ictrl[ii][i] = alf * ictrl[ii][i] + (1.0-alf) * ictrl[ii][i-1];
-          }        
+              ictrl[ii*nci+i] = alf*ictrl[ii*nci+i] + (1.0-alf)*ictrl[ii*nci+i-1];
+          }
           if (j >= lbz)
           {
             if (j-tr <= kind-ph+oldr)
@@ -879,7 +882,7 @@ static void _bspdegelev(int d, double **ctrl, int mc, int nc, double *k, int nk,
     for (j = lbz; j <= rbz; j++)
     {
       for (ii = 0; ii < mc; ii++)
-        ictrl[ii][cind] = ebpts[ii][j];
+        ictrl[ii*nci+cind] = ebpts[ii][j];
       cind++;
     }
     
@@ -891,7 +894,7 @@ static void _bspdegelev(int d, double **ctrl, int mc, int nc, double *k, int nk,
           bpts[ii][j] = Nextbpts[ii][j];
       for (j = r; j <= d; j++)
         for (ii = 0; ii < mc; ii++)
-          bpts[ii][j] = ctrl[ii][b-d+j];
+          bpts[ii][j] = ctrl[ii*nc+b-d+j];
       a = b;
       b++;
       ua = ub;
@@ -914,31 +917,32 @@ static void _bspdegelev(int d, double **ctrl, int mc, int nc, double *k, int nk,
 
 static PyObject * _Bas_bspdegelev(PyObject *self, PyObject *args)
 {
-    int d, mc, nc, nk, t, nh, dim[2];
-    double **ctrlmat, **icmat;
+    int d, t, nh;
+    npy_intp mc, nc, nk, dim[2];
+    double *ctrldat, *icdat, *kdat, *ikdat;
     PyObject *input_ctrl, *input_k;
     PyArrayObject *ctrl, *k, *ic, *ik;
     if(!PyArg_ParseTuple(args, "iOOi", &d, &input_ctrl, &input_k, &t))
         return NULL;
-    ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
+    ctrl = (PyArrayObject *) PyArray_ContiguousFromAny(input_ctrl, NPY_DOUBLE, 2, 2);
     if(ctrl == NULL)
         return NULL;
-    k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
+    k = (PyArrayObject *) PyArray_ContiguousFromAny(input_k, NPY_DOUBLE, 1, 1);
     if(k == NULL)
         return NULL;
-    mc = ctrl->dimensions[0];
-    nc = ctrl->dimensions[1];
-    nk = k->dimensions[0];
+    mc = PyArray_DIM(ctrl, 0);
+    nc = PyArray_DIM(ctrl, 1);
+    nk = PyArray_DIM(k, 0);
     dim[0] = mc;
     dim[1] = nc*(t + 1);
-    ic = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
-    ctrlmat = vec2mat(ctrl->data, mc, nc);
-    icmat = vec2mat(ic->data, mc, nc*(t + 1));
+    ic = (PyArrayObject *) PyArray_SimpleNew(2, dim, NPY_DOUBLE);
     dim[0] = (t + 1)*nk;
-    ik = (PyArrayObject *) PyArray_FromDims(1, dim, PyArray_DOUBLE);
-    _bspdegelev(d, ctrlmat, mc, nc, (double *)k->data, nk, t, &nh, icmat, (double *)ik->data);
-    free(icmat);
-    free(ctrlmat);
+    ik = (PyArrayObject *) PyArray_SimpleNew(1, dim, NPY_DOUBLE);
+    ctrldat = (double *)PyArray_DATA(ctrl);
+    icdat   = (double *)PyArray_DATA(ic);
+    kdat    = (double *)PyArray_DATA(k);
+    ikdat   = (double *)PyArray_DATA(ik);
+    _bspdegelev(d, ctrldat, mc, nc, kdat, nk, t, &nh, icdat, ikdat);
     Py_DECREF(ctrl);
     Py_DECREF(k);
     return Py_BuildValue("(OOi)", (PyObject *)ic, (PyObject *)ik, nh);

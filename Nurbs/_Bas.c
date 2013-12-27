@@ -962,9 +962,11 @@ OUTPUT:\n\
 Modified version of Algorithm A5.6 from 'The NURBS BOOK' pg173.\n\
 \n";
 
-static void _bspbezdecom(int d, double **ctrl, int mc, int nc, double *k, int nk, 
-               double **ictrl)
+static void _bspbezdecom(int d, double *ctrl, int mc, int nc, double *k, int nk, 
+               double *ictrl, int nci)
 {
+    // ctrl dimensions:  (mc, nc)
+    // ictrl dimensions: (mc, nci)
   int i, j, s, m, r, a, b, mul, n, nb, ii, save, q;
   double ua, ub, numer;
   double *alfs; 
@@ -982,7 +984,7 @@ static void _bspbezdecom(int d, double **ctrl, int mc, int nc, double *k, int nk
   // initialise first bezier seg
   for (i = 0; i <= d; i++)
     for (ii = 0; ii < mc; ii++)
-      ictrl[ii][i] = ctrl[ii][i];  
+      ictrl[ii*nci+i] = ctrl[ii*nc+i];  
 
   // big loop thru knot vector
   while (b < m)
@@ -1009,10 +1011,10 @@ static void _bspbezdecom(int d, double **ctrl, int mc, int nc, double *k, int nk
 
         for (q = d; q >= s; q--)
           for (ii = 0; ii < mc; ii++)
-            ictrl[ii][q+nb] = alfs[q-s]*ictrl[ii][q+nb]+(1.0-alfs[q-s])*ictrl[ii][q-1+nb];
+            ictrl[ii*nci+q+nb] = alfs[q-s]*ictrl[ii*nci+q+nb]+(1.0-alfs[q-s])*ictrl[ii*nci+q-1+nb];
 
         for (ii = 0; ii < mc; ii++)
-          ictrl[ii][save+nb+d+1] = ictrl[ii][d]; 
+          ictrl[ii*nci+save+nb+d+1] = ictrl[ii*nci+d]; 
       }  
     }
     // end of insert knot
@@ -1022,7 +1024,7 @@ static void _bspbezdecom(int d, double **ctrl, int mc, int nc, double *k, int nk
       // setup for next pass thru loop
       for (j = r; j <= d; j++)
         for (ii = 0; ii < mc; ii++)
-          ictrl[ii][j+nb] = ctrl[ii][b-d+j];
+          ictrl[ii*nci+j+nb] = ctrl[ii*nc+b-d+j];
       a = b;
       b++;
       ua = ub;
@@ -1035,30 +1037,31 @@ static void _bspbezdecom(int d, double **ctrl, int mc, int nc, double *k, int nk
 
 static PyObject * _Bas_bspbezdecom(PyObject *self, PyObject *args)
 {
-    int i, b, c, d, mc, nc, nk, m,  dim[2];
-    double **ctrlmat, **icmat, *ks;
+    int i, b, c, d, m;
+    npy_intp mc, nc, nk, dim[2];
+    double *ctrldat, *icdat, *kdat;
     PyObject *input_ctrl, *input_k;
     PyArrayObject *ctrl, *k, *ic;
     if(!PyArg_ParseTuple(args, "iOO", &d, &input_ctrl, &input_k))
         return NULL;
-    ctrl = (PyArrayObject *) PyArray_ContiguousFromObject(input_ctrl, PyArray_DOUBLE, 2, 2);
+    ctrl = (PyArrayObject *) PyArray_ContiguousFromAny(input_ctrl, NPY_DOUBLE, 2, 2);
     if(ctrl == NULL)
         return NULL;
-    k = (PyArrayObject *) PyArray_ContiguousFromObject(input_k, PyArray_DOUBLE, 1, 1);
+    k = (PyArrayObject *) PyArray_ContiguousFromAny(input_k, NPY_DOUBLE, 1, 1);
     if(k == NULL)
         return NULL;
-    mc = ctrl->dimensions[0];
-    nc = ctrl->dimensions[1];
-    nk = k->dimensions[0];
+    mc = PyArray_DIM(ctrl, 0);
+    nc = PyArray_DIM(ctrl, 1);
+    nk = PyArray_DIM(k, 0);
     
+    kdat    = (double *)PyArray_DATA(k);
+
     i = d + 1;
     c = 0;
     m = nk - d - 1;
-    while (i < m)
-    {
+    while (i < m) {
         b = 1;
-        while (i < m && *(double *)(k->data + i * k->strides[0]) == *(double *)(k->data + (i + 1) * k->strides[0]))
-        {
+        while (i < m && kdat[i] == kdat[i+1]) {
             b++;
             i++;
         }
@@ -1068,12 +1071,10 @@ static PyObject * _Bas_bspbezdecom(PyObject *self, PyObject *args)
     }
     dim[0] = mc;
     dim[1] = nc+c;
-    ic = (PyArrayObject *) PyArray_FromDims(2, dim, PyArray_DOUBLE);
-    ctrlmat = vec2mat(ctrl->data, mc, nc);
-    icmat = vec2mat(ic->data, mc, nc+c);
-    _bspbezdecom(d, ctrlmat, mc, nc, (double *)k->data, nk, icmat);
-    free(icmat);
-    free(ctrlmat); 
+    ic = (PyArrayObject *) PyArray_SimpleNew(2, dim, NPY_DOUBLE);
+    ctrldat = (double *)PyArray_DATA(ctrl);
+    icdat   = (double *)PyArray_DATA(ic);
+    _bspbezdecom(d, ctrldat, mc, nc, kdat, nk, icdat, dim[1]);
     Py_DECREF(ctrl);
     Py_DECREF(k); 
     return Py_BuildValue("O", ic);

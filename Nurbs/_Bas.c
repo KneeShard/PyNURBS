@@ -688,15 +688,15 @@ INPUT:\n\
  deg    - spline degree               int\n\
  k      - knot sequence               double  vector(nk)\n\
  u_val  - value of knot to remove     double\n\
- u_ind  - index of knot to remove     int\n\
- u_mult - max multiplicity of knots   int\n\
+ u_ind  - index of knot               int\n\
+ u_mult - multiplicity of knot        int\n\
  num    - max knots to remove         int\n\
 \n\
 OUTPUT:\n\
 \n\
  rem    - number of knots actually removed\n\
 \n\
-Algorithm ?? from 'The NURBS BOOK' pg?\n\
+Algorithm A5.8 from 'The NURBS BOOK' pg.185\n\
 \n";
 
 static double _dist_4d(double* x, double* y)
@@ -741,15 +741,12 @@ static int _bspkntrem(double *ctrl, int mc, int nc, int deg, double *kts,
     last = u_ind - u_mult;
     first= u_ind - deg;
 
-    //print 'init\n', temp.shape
-    //while rem_count<num:
     for (rem_count=0; rem_count<num; rem_count++) {
         off = first - 1;
         for (im=0; im<mc; im++) {
             temp[im][0] = ctrl[im*nc+off];
             temp[im][last+1-off] = ctrl[im*nc+last+1];
         }
-        //print 'before inner loop\n', temp.shape
         i0 = first; j0 = last;            // i0, j0 = i, j
         i1 = 1; j1 = last-off;            // i1, j1 = ii, jj
         remflag = 0;
@@ -761,10 +758,8 @@ static int _bspkntrem(double *ctrl, int mc, int nc, int deg, double *kts,
                 temp[im][i1] = ( ctrl[im*nc+i0]-(1.0-alfi)*temp[im][i1-1] )/alfi;
                 temp[im][j1] = ( ctrl[im*nc+j0]-alfj*temp[im][j1+1] )/( 1.0-alfj );
             }
-            //i0+=1; i1+=1; j0-=1; j1-=1;
             i0++; i1++; j0--; j1--;
         }
-        //print 'after inner loop\n', temp.shape
         if (j0-i0 < rem_count)
         {
             // even number of equations => two values for new control point
@@ -801,13 +796,10 @@ static int _bspkntrem(double *ctrl, int mc, int nc, int deg, double *kts,
                     ctrl[im*nc+i0] = temp[im][i0-off];
                     ctrl[im*nc+j0] = temp[im][j0-off];
                 }
-                //i0+=1; j0-=1;
                 i0++; j0--;
             }
         }
-        //first-=1; last+=1;
         first--; last++;
-        rem_count++;
     }
     freematrix(temp, mc);
     if (rem_count == 0)

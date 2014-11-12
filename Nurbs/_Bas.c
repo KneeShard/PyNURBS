@@ -142,23 +142,24 @@ static char findspan__doc__[] =
 
 static int _findspan(int n, int p, double u, double *U)
 {
-  int low, high, mid;
-   
-  //printf ("n=%d, p=%d, u=%g\n", n, p ,u);
+  int low, high, mid, esc;
+  esc=0;
+
   // special case
   if (u == U[n+1]) return(n);
-    
+
   // do binary search
   low = p;
   high = n + 1;
   mid = (low + high) / 2;
-  while (u < U[mid] || u >= U[mid+1])
+  while (u < U[mid] || u >= U[mid+1] || esc>1000)
   {
     if (u < U[mid])
       high = mid;
     else
       low = mid;
-    mid = (low + high) / 2; // 
+    mid = (low + high) / 2;
+    esc++;
   }  
 
   return(mid);
@@ -678,6 +679,182 @@ static PyObject * _Bas_bspkntins(PyObject *self, PyObject *args)
     return Py_BuildValue("(OO)", (PyObject *)ic, (PyObject *)ik);
 }
 
+static char bspkntrem__doc__[] =
+"Remove knots from a B-Spline.\n\
+\n\
+INPUT:\n\
+\n\
+ ctrl   - control points              double  matrix(mc,nc)\n\
+ deg    - spline degree               int\n\
+ k      - knot sequence               double  vector(nk)\n\
+ u_val  - value of knot to remove     double\n\
+ u_ind  - index of knot to remove     int\n\
+ u_mult - max multiplicity of knots   int\n\
+ num    - max knots to remove         int\n\
+\n\
+OUTPUT:\n\
+\n\
+ rem    - number of knots actually removed\n\
+\n\
+Algorithm ?? from 'The NURBS BOOK' pg?\n\
+\n";
+
+static double _dist_4d(double* x, double* y)
+{
+    double loc0;
+    double loc1=0.0;
+    int ii;
+    for (ii=0; ii<4; ii++)
+    {
+        loc0 = y[ii]-x[ii];
+        loc1 += loc0*loc0;
+    }
+    return sqrt(loc1);
+}
+
+static int _bspkntrem(double *ctrl, int mc, int nc, int deg, double *kts,
+        double u_val, int u_ind, int u_mult, int num, double tol)
+{
+    // Pw    = ctrl
+    // n     = nc
+    // p     = deg
+    // U     = kts
+    // u     = u_val
+    // r     = u_ind
+    // s     = u_mult
+    // t     = rem_count
+    // m     = nkts
+    // ord   = order
+    int rem_count, remflag, nkts, order, nc_m1;
+    int fout, last, first, off, i0, j0, i1, j1;
+    int ix, im;
+    double alfi, alfj, xx[4], yy[4];
+    double **temp;
+
+    nc_m1 = nc - 1;
+    nkts = nc_m1+deg+1;
+    order = deg+1;
+    rem_count = 0;
+
+    temp = matrix(mc,2*deg+1);
+    fout = (2*u_ind - u_mult - deg)/2;
+    last = u_ind - u_mult;
+    first= u_ind - deg;
+
+    //print 'init\n', temp.shape
+    //while rem_count<num:
+    for (rem_count=0; rem_count<num; rem_count++) {
+        off = first - 1;
+        for (im=0; im<mc; im++) {
+            temp[im][0] = ctrl[im*nc+off];
+            temp[im][last+1-off] = ctrl[im*nc+last+1];
+        }
+        //print 'before inner loop\n', temp.shape
+        i0 = first; j0 = last;            // i0, j0 = i, j
+        i1 = 1; j1 = last-off;            // i1, j1 = ii, jj
+        remflag = 0;
+        while (j0-i0 > rem_count)
+        {
+            alfi = ( u_val-kts[i0] )/( kts[i0+order+rem_count] - kts[i0] );
+            alfj = ( u_val-kts[j0-rem_count] )/( kts[j0+order] - kts[j0-rem_count] );
+            for (im=0; im<mc; im++) {
+                temp[im][i1] = ( ctrl[im*nc+i0]-(1.0-alfi)*temp[im][i1-1] )/alfi;
+                temp[im][j1] = ( ctrl[im*nc+j0]-alfj*temp[im][j1+1] )/( 1.0-alfj );
+            }
+            //i0+=1; i1+=1; j0-=1; j1-=1;
+            i0++; i1++; j0--; j1--;
+        }
+        //print 'after inner loop\n', temp.shape
+        if (j0-i0 < rem_count)
+        {
+            // even number of equations => two values for new control point
+            // (see p.183 of The NURBS Book)
+            for (im=0; im<mc; im++) {
+                xx[im] = temp[im][i1-1];
+                yy[im] = temp[im][j1+1];
+            }
+            if (_dist_4d(xx, yy) <= tol)
+                // Hack: store average of two estimates in temp[:,i1-1]
+                //temp[:,i1-1] = 0.5*(temp[:,i1-1]+temp[:,j1+1])
+                remflag = 1;
+        }
+        else
+        {
+            // odd number of equations => compare new control point with old one
+            // (see p.183 of The NURBS Book)
+            alfi = ( u_val-kts[i0] )/( kts[i0+order+rem_count] - kts[i0] );
+            for (im=0; im<mc; im++) {
+                xx[im] = ctrl[im*nc+i0];
+                yy[im] = alfi*temp[im][i1+rem_count+1] + (1.0-alfi)*temp[im][i1-1];
+            }
+            if (_dist_4d(xx, yy) <= tol)
+                remflag = 1;
+        }
+        if (remflag == 0)
+            break;
+        else
+        {
+            i0 = first; j0 = last;
+            while (j0-i0 > rem_count)
+            {
+                for (im=0; im<mc; im++) {
+                    ctrl[im*nc+i0] = temp[im][i0-off];
+                    ctrl[im*nc+j0] = temp[im][j0-off];
+                }
+                //i0+=1; j0-=1;
+                i0++; j0--;
+            }
+        }
+        //first-=1; last+=1;
+        first--; last++;
+        rem_count++;
+    }
+    freematrix(temp, mc);
+    if (rem_count == 0)
+        return rem_count;
+    for (ix=u_ind+1; ix<=nkts; ix++)
+        kts[ix-rem_count] = kts[ix];
+    i0 = j0; j0 = fout;
+    for (ix=1; ix<rem_count; ix++) {
+        if (ix%2 == 1)
+            i0++;
+        else
+            j0--;
+    }
+    for (ix=i0+1; ix<=nc_m1; ix++) {
+        for (im=0; im<mc; im++)
+            ctrl[im*nc+j0] = ctrl[im*nc+ix];
+        j0++;
+    }
+    return rem_count;
+}
+
+static PyObject * _Bas_bspkntrem(PyObject *self, PyObject *args)
+{
+    int ret, deg, u_ind, u_mult, num;
+    npy_intp mc, nc;
+    double *ctrldat, *kdat, tol, u_val;
+    PyObject *input_ctrl, *input_kts;
+    PyArrayObject *ctrl, *kts;
+
+    if(!PyArg_ParseTuple(args, "OiOdiiid", &input_ctrl, &deg, &input_kts, &u_val,
+                         &u_ind, &u_mult, &num, &tol))
+        return NULL;
+    ctrl = (PyArrayObject *) PyArray_ContiguousFromAny(input_ctrl, NPY_DOUBLE, 2, 2);
+    if(ctrl == NULL)
+        return NULL;
+    kts = (PyArrayObject *) PyArray_ContiguousFromAny(input_kts, NPY_DOUBLE, 1, 1);
+    if(kts == NULL)
+        return NULL;
+    mc = PyArray_DIM(ctrl, 0);
+    nc = PyArray_DIM(ctrl, 1);
+    ctrldat = (double *)PyArray_DATA(ctrl);
+    kdat    = (double *)PyArray_DATA(kts);
+
+    ret = _bspkntrem(ctrldat, mc, nc, deg, kdat, u_val, u_ind, u_mult, num, tol);
+    return Py_BuildValue("i", ret);
+}
+
 static char bspdegelev__doc__[] =
 "Degree elevate a B-Spline t times.\n\
 \n\
@@ -1074,6 +1251,7 @@ static PyMethodDef _Bas_methods[] =
     {"bspeval", _Bas_bspeval, METH_VARARGS, bspeval__doc__},
     {"bspdeval", _Bas_bspdeval, METH_VARARGS, bspdeval__doc__},
     {"bspkntins", _Bas_bspkntins, METH_VARARGS, bspkntins__doc__},
+    {"bspkntrem", _Bas_bspkntrem, METH_VARARGS, bspkntrem__doc__},
     {"bspdegelev", _Bas_bspdegelev, METH_VARARGS, bspdegelev__doc__},
     {"bspbezdecom", _Bas_bspbezdecom, METH_VARARGS, bspbezdecom__doc__},
     // se:

@@ -5,9 +5,8 @@ http://www.aria.uklinux.net/nurbs
 
 Dependency
 ============
-Python 2.0 or newer
-NumPy
-PyOpenGL -> optional
+Python 3.5 or newer
+NumPy 1.7 or newer
 
 Installation
 ============
@@ -23,4 +22,4 @@ which is stated in the file 'LICENSE'.
 Runar Tenfjord
 runten@netcom.no'''
 
-__all__=['_Bas','Util','Crv','Srf']
+__all__=['_bas','util','crv','srf']

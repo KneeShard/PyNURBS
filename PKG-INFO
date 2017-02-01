@@ -1,7 +1,8 @@
 Metadata-Version: 1.0
-Name: Nurbs
-Version: 0.1
+Name: nurbs
+Version: 0.2
 Summary: Python module to work with NURBS curves and surfaces.
 Original Author: Runar Tenfjord
 Original Author-email: runten@netcom.no
-Updated by: Alex Wiltschko
+Updated by: Alex Wiltschko, KneeShard
+

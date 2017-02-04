@@ -1,21 +1,17 @@
 import math
-from _Bas import  bspkntins, bspdegelev, bspbezdecom, bspeval # Lowlevel functions
-from Util import translate, scale, roty, rotx, rotz, NURBSError
-import Crv
-
-dependencies = '''This module requires:
-	Numeric Python
-'''
+from nurbs._bas import  bspkntins, bspdegelev, bspbezdecom, bspeval # Lowlevel functions
+from nurbs.util import translate, scale, roty, rotx, rotz, NURBSError
+from nurbs import crv
 
 try:
     import numpy as np
-except ImportError, value:
-	print dependencies
-	raise
+except ImportError as value:
+    print('This module requires NumPy')
+    raise
 
 class Srf:
     '''Construct a NURB surface structure, and check the format.
-    
+
  The NURB surface is represented by a 4 dimensional b-spline.
 
  INPUT:
@@ -26,7 +22,7 @@ class Srf:
             nv  is along the v direction.
             dim is the dimension valid options are:
             2 .... (x,y)        2D cartesian coordinates
-            3 .... (x,y,z)      3D cartesian coordinates   
+            3 .... (x,y,z)      3D cartesian coordinates
             4 .... (wx,wy,wz,w) 4D homogeneous coordinates
 
     uknots - Knot sequence along the parametric u direction.
@@ -44,42 +40,42 @@ class Srf:
         cntrl = np.asarray(cntrl, np.float)
         (dim, nu, nv) = cntrl.shape
         if dim < 2 or dim > 4:
-            raise NURBSError, 'Illegal control point format'
+            raise NURBSError('Illegal control point format')
         elif dim < 4:
             self.cntrl = np.zeros((4, nu, nv), np.float)
             self.cntrl[0:dim,:,:] = cntrl
             self.cntrl[-1,:,:] = np.ones((nu,nv), np.float)
         else:
             self.cntrl = cntrl
-            
+
         # Force the u knot sequence to be a vector in ascending order
         # and normalise between [0.0,1.0]
         uknots = np.sort(np.asarray(uknots, np.float))
         nku = uknots.shape[0]
         uknots = (uknots - uknots[0])/(uknots[-1] - uknots[0])
         if uknots[0] == uknots[-1]:
-            raise NURBSError, 'Illegal uknots sequence'
+            raise NURBSError('Illegal uknots sequence')
         self.uknots = uknots
-        
+
         # Force the v knot sequence to be a vector in ascending order
-        # and normalise between [0.0,1.0]  
+        # and normalise between [0.0,1.0]
         vknots = -np.sort(-np.asarray(vknots, np.float))
         nkv = vknots.shape[0]
         vknots = (vknots - vknots[0])/(vknots[-1] - vknots[0])
         if vknots[0] == vknots[-1]:
-            raise NURBSError, 'Illegal vknots sequence'
+            raise NURBSError('Illegal vknots sequence')
         self.vknots = vknots
-        
+
         # Spline Degree
         self.degree = [nku-nu-1, nkv-nv-1]
         if self.degree[0] < 0 or self.degree[1] < 0:
-            raise NURBSError, 'NURBS order must be a positive integer'
+            raise NURBSError('NURBS order must be a positive integer')
 
     def trans(self, mat):
         "Apply the 4D transform matrix to the NURB control points."
         for v in range(self.cntrl.shape[2]):
             self.cntrl[:,:,v] = np.dot(mat, self.cntrl[:,:,v])
-        
+
     def swapuv(self):
         "Swap u and v parameters."
         self.cntrl = np.transpose(self.cntrl,(0,2,1))
@@ -89,7 +85,7 @@ class Srf:
         udegree, vdegree = self.degree
         self.degree[0] = vdegree
         self.degree[1] = udegree
-        
+
     def reverse(self):
         "Reverse evaluation directions."
         coefs = self.cntrl[:,:,::-1]
@@ -122,7 +118,7 @@ class Srf:
                 elif k != j:
                     i += 1
                     j = k
-        return Crv.Crv(cntrl[:,i,:], self.vknots[:])
+        return crv.Crv(cntrl[:,i,:], self.vknots[:])
 
     def extractU(self, v):
         "Extract curve in u-direction at parameter v."
@@ -147,9 +143,9 @@ class Srf:
                 elif k != j:
                     i += 1
                     j = k
-        return Crv.Crv(cntrl[:,:,i], self.uknots[:])
-    
-    def kntins(self, uknots, vknots = None):
+        return crv.Crv(cntrl[:,:,i], self.uknots[:])
+
+    def kntins(self, uknots, vknots=None):
         """Insert new knots into the surface
 	uknots - knots to be inserted along u direction
 	vknots - knots to be inserted along v direction
@@ -172,14 +168,14 @@ class Srf:
             coefs, self.uknots = bspkntins(self.degree[0], coefs, self.uknots, uknots)
             coefs = np.resize(coefs, (4, self.cntrl.shape[2], coefs.shape[1]))
             self.cntrl = np.transpose(coefs,(0,2,1))
-            
-    def degelev(self, utimes, vtimes = None):
+
+    def degelev(self, utimes, vtimes=None):
         """Degree elevate the surface.
 	utimes - degree elevate utimes along u direction.
 	vtimes - degree elevate vtimes along v direction."""
         if vtimes != None:
             if vtimes < 0:
-                raise NURBSError, 'Degree must be positive'
+                raise NURBSError('Degree must be positive')
             coefs = np.resize(self.cntrl,(4*self.cntrl.shape[1], self.cntrl.shape[2]))
             coefs, vknots, nh = bspdegelev(self.degree[1], coefs, self.vknots, vtimes)
             coefs = coefs[:,:nh + 1]
@@ -188,7 +184,7 @@ class Srf:
             self.cntrl = np.resize(coefs, (4, self.cntrl.shape[1], coefs.shape[1]))
         if utimes != None:
             if utimes < 0:
-                raise NURBSError, 'Degree must be positive'
+                raise NURBSError('Degree must be positive')
             coefs = np.transpose(self.cntrl,(0, 2, 1))
             coefs = np.resize(coefs,(4*self.cntrl.shape[2], self.cntrl.shape[1]))
             coefs, uknots, nh = bspdegelev(self.degree[0], coefs, self.uknots, utimes)
@@ -198,7 +194,7 @@ class Srf:
             coefs = np.resize(coefs, (4, self.cntrl.shape[2], coefs.shape[1]))
             self.cntrl = np.transpose(coefs,(0,2,1))
 
-    def bezier(self, update = None):
+    def bezier(self, update=None):
         "Decompose surface to bezier patches and return overlaping control points."
         if update or not self._bezier:
             cntrl = np.resize(self.cntrl,(4*self.cntrl.shape[1], self.cntrl.shape[2]))
@@ -212,7 +208,7 @@ class Srf:
             cntrl = np.resize(cntrl, (4, temp2, cntrl.shape[1]))
             self._bezier = np.transpose(cntrl,(0, 2, 1))
         return self._bezier
-        
+
     def bounds(self):
         "Return the bounding box for the surface."
         w = self.cntrl[3,:,:]
@@ -220,9 +216,9 @@ class Srf:
         cy = np.sort(np.ravel(self.cntrl[1,:,:]/w))
         cz = np.sort(np.ravel(self.cntrl[2,:,:]/w))
         return np.asarray([cx[0], cy[0], cz[0],
-                                cx[-1], cy[-1], cz[-1]], np.float)
-        
-    def pnt3D(self, ut, vt = None):
+                           cx[-1], cy[-1], cz[-1]], np.float)
+
+    def pnt3D(self, ut, vt=None):
         """Evaluate parametric point[s] and return 3D cartesian coordinate[s]
 	If only ut is given then we will evaluate at scattered points.
 	ut(0,:) represents the u direction.
@@ -233,8 +229,8 @@ class Srf:
             return val[0:3,:]/np.resize(val[-1,:], (3, val.shape[1]))
         else: #FIX!
             return val[0:3,:,:]/np.resize(val[-1,:,:], (3, val.shape[1], val.shape[2]))
-        
-    def pnt4D(self, ut, vt = None):
+
+    def pnt4D(self, ut, vt=None):
         """Evaluate parametric point[s] and return 4D homogeneous coordinates.
 	If only ut is given then we will evaluate at scattered points.
 	ut(0,:) represents the u direction.
@@ -243,24 +239,24 @@ class Srf:
         ut = np.asarray(ut, np.float)
         # if np.less(ut, 0.) or np.greater(ut, 1.):
         #     raise NURBSError, 'NURBS curve parameter out of range [0,1]'
-        
+
         if vt != None:
             # Evaluate over a [u,v] grid
             vt = np.asarray(vt, np.float)
             # if np.less(vt, 0.) or np.greater(vt, 1.):
             #     raise NURBSError, 'NURBS curve parameter out of range [0,1]'
-    
+
             val = np.resize(self.cntrl,(4*self.cntrl.shape[1],self.cntrl.shape[2]))
             val = bspeval(self.degree[1], val, self.vknots, vt)
             val = np.resize(val,(4, self.cntrl.shape[1], vt.shape[0]))
-    
+
             val = np.transpose(val,(0,2,1))
-    
+
             val = np.resize(self.cntrl,(4*vt.shape[0],self.cntrl.shape[1]))
             val = bspeval(self.degree[0], val, self.uknots, ut)
             val = np.resize(val,(4, vt.shape[0], ut.shape[0]))
-       
-            return np.transpose(val,(0,2,1)) 
+
+            return np.transpose(val,(0,2,1))
 
         # Evaluate at scattered points
         nt = ut.shape[1]
@@ -271,22 +267,21 @@ class Srf:
         val = np.zeros((4,nt), np.float)
         for v in range(nt):
             val[:,v] = bspeval(self.degree[0],np.resize(uval[:,:,v],(4,self.cntrl.shape[1])),
-                                self.uknots, (ut[0,v],))[:,0]
+                               self.uknots, (ut[0,v],))[:,0]
         return val
-            
-    def plot(self, n = 50, iso = 8):
+
+    def plot(self, n=50, iso=8):
         """A simple plotting function based on matplotlib for debugging purpose.
 	n = number of subdivisions. iso = number of iso line to plot in each dir.
 	TODO: plot ctrl poins and knots."""
         try:
-			from mpl_toolkits.mplot3d import axes3d
-			import matplotlib as mpl
-			import matplotlib.pyplot as plt
-        except ImportError, value:
-            print 'matplotlib plotting library not available'
+            from mpl_toolkits.mplot3d import axes3d
+            import matplotlib.pyplot as plt
+        except ImportError as value:
+            print('matplotlib plotting library not available')
             return
 
-		# TODO clean (most of this isn't necessary with matplotlib)
+        # TODO clean (most of this isn't necessary with matplotlib)
         maxminx = np.sort(np.ravel(self.cntrl[0,:,:])/np.ravel(self.cntrl[3,:,:]))
         minx = maxminx[0]
         maxx = maxminx[-1]
@@ -308,110 +303,74 @@ class Srf:
             minz -= 1.
             maxz += 1.
 		# overlap!!?
-        pnts0 = self.pnt3D([np.arange(n + 1, dtype = np.float64)/n,
+        pnts0 = self.pnt3D([np.arange(n + 1, dtype=np.float64)/n,
                             np.zeros(n + 1,np.float)])
-        pnts1 = self.pnt3D([np.arange(n + 1, dtype = np.float64)/n,
+        pnts1 = self.pnt3D([np.arange(n + 1, dtype=np.float64)/n,
                             np.ones(n + 1,np.float)])
         pnts2 = self.pnt3D([np.zeros(n + 1,np.float),
-                            np.arange(n + 1, dtype = np.float64)/n])
+                            np.arange(n + 1, dtype=np.float64)/n])
         pnts3 = self.pnt3D([np.ones(n + 1,np.float),
-                            np.arange(n + 1, dtype = np.float64)/n])
+                            np.arange(n + 1, dtype=np.float64)/n])
 
         fig = plt.figure()
-            
-        
+
         ax = fig.add_subplot(111, projection='3d')
         # TODO
-        plt.title("b-spline Surface. n={}, p={}, m={}, q={}".format(1,-1, 1, -1 ))
+        plt.title("b-spline Surface. n={}, p={}, m={}, q={}".format(1,-1, 1, -1))
         plt.xlabel('x')
         plt.ylabel('y')
         # FIXME plt.zlabel('z')
-		# -- # actual nurbs
+        # -- # actual nurbs
         # -- plt.plot(pnts[0,:], pnts[1,:], pnts[2,:], label='parametric bspline')
 
-		# FIXME: next line plots nothing?
+        # FIXME: next line plots nothing?
         plt.plot(pnts0[0,:], pnts0[1,:], pnts0[2,:], label='-0')
-		# first/last? y direction iso line
+        # first/last? y direction iso line
         plt.plot(pnts1[0,:], pnts1[1,:], pnts1[2,:], label='-1')
-		# first/ x direction line
+        # first/ x direction line
         plt.plot(pnts2[0,:], pnts2[1,:], pnts2[2,:], label='-2')
-		# FIXME: overlapping line?
+        # FIXME: overlapping line?
         plt.plot(pnts3[0,:], pnts3[1,:], pnts3[2,:], label='-3')
 
-		# -- # control points/polygon
+        # -- # control points/polygon
         # -- plt.plot(self.cntrl[0,:]/self.cntrl[3,:], self.cntrl[1,:]/self.cntrl[3,:],
-        # --               self.cntrl[2,:]/self.cntrl[3,:], 'ro-', label='control pts', linewidth=.5)
+        # --          self.cntrl[2,:]/self.cntrl[3,:], 'ro-', label='control pts', linewidth=.5)
 
-        # -- plt.plot(knots[0,:], knots[1,:], knots[2,:], 'y+', markersize = 10, markeredgewidth=1.8, label="knots")
+        # -- plt.plot(knots[0,:], knots[1,:], knots[2,:],
+        # --          'y+', markersize = 10, markeredgewidth=1.8, label="knots")
 
         # future (auto):
-		# ax.plot_surface(s[:,:,0], s[:,:,1], s[:,:,2],rstride=1,cstride=1,linewidth=0.000)
-		# manual:
+        # ax.plot_surface(s[:,:,0], s[:,:,1], s[:,:,2],rstride=1,cstride=1,linewidth=0.000)
+        # manual:
         step = 1./iso
         for uv in np.arange(step, 1., step):
-            pnts = self.pnt3D([np.arange(n + 1, dtype = np.float64)/n,
+            pnts = self.pnt3D([np.arange(n + 1, dtype=np.float64)/n,
                                np.zeros(n + 1,np.float64) + uv])
-			# iso lines in x-direction
+            # iso lines in x-direction
             plt.plot(pnts[0,:], pnts[1,:], pnts[2,:], 'b-', label='a')
             pnts = self.pnt3D([np.zeros(n + 1,np.float64) + uv,
-                               np.arange(n + 1, dtype = np.float64)/n])
+                               np.arange(n + 1, dtype=np.float64)/n])
             plt.plot(pnts[0,:], pnts[1,:], pnts[2,:], 'r-', label='b')
 
         plt.legend(fontsize='x-small',bbox_to_anchor=(0.91, 1), loc=2, borderaxespad=-1.)
         plt.savefig("bspline-surf-R3.png")
         # plt.show() # stops here
         plt.close()
-                
-        # dislin- dislin.metafl('cons')
-        # dislin- dislin.disini()
-        # dislin- dislin.hwfont()
-        # dislin- dislin.pagera()
-        # dislin- dislin.name('X-axis', 'X')
-        # dislin- dislin.name('Y-axis', 'Y')
-        # dislin- dislin.name('Z-axis', 'Z')
-        # dislin- dislin.graf3d(minx, maxx, 0 , abs((maxx-minx)/4.),
-        # dislin-               miny, maxy, 0 , abs((maxy-miny)/4.),
-        # dislin-               minz, maxz, 0 , abs((maxz-minz)/4.))
-        # dislin-     
-        # dislin- dislin.color('yellow')
-        # dislin- pnts0 = self.pnt3D([np.arange(n + 1, typecode = np.float)/n,
-        # dislin-                     np.zeros(n + 1,np.float)])
-        # dislin- pnts1 = self.pnt3D([np.arange(n + 1, typecode = np.float)/n,
-        # dislin-                     np.ones(n + 1,np.float)])
-        # dislin- pnts2 = self.pnt3D([np.zeros(n + 1,np.float),
-        # dislin-                     np.arange(n + 1, typecode = np.float)/n])
-        # dislin- pnts3 = self.pnt3D([np.ones(n + 1,np.float),
-        # dislin-                     np.arange(n + 1, typecode = np.float)/n])
-        # dislin- dislin.curv3d(pnts0[0,:], pnts0[1,:], pnts0[2,:], n+1)
-        # dislin- dislin.curv3d(pnts1[0,:], pnts1[1,:], pnts1[2,:], n+1)
-        # dislin- dislin.curv3d(pnts2[0,:], pnts2[1,:], pnts2[2,:], n+1)
-        # dislin- dislin.curv3d(pnts3[0,:], pnts3[1,:], pnts3[2,:], n+1)
-        # dislin-     
-        # dislin- dislin.color('red')
-        # dislin- step = 1./iso
-        # dislin- for uv in np.arange(step, 1., step):
-        # dislin-     pnts = self.pnt3D([np.arange(n + 1, typecode = np.float)/n,
-        # dislin-                        np.zeros(n + 1,np.float) + uv])
-        # dislin-     dislin.curv3d(pnts[0,:], pnts[1,:], pnts[2,:], n+1)
-        # dislin-     pnts = self.pnt3D([np.zeros(n + 1,np.float) + uv,
-        # dislin-                        np.arange(n + 1, typecode = np.float)/n])
-        # dislin-     dislin.curv3d(pnts[0,:], pnts[1,:], pnts[2,:], n+1)
-        # dislin-     
-        # dislin- dislin.disfin()
 
     def __call__(self, *args):
         return self.pnt3D(args[0])
 
     def __repr__(self):
-        return 'Nurbs surface:\ndegree: %s\ncntrl: %s\nuknots: %s\nvknots: %s' % (`self.degree`,`self.cntrl`,`self.uknots`,`self.vknots`)
+        return '''Nurbs surface:\ndegree: {0}\ncntrl: {1}
+uknots: {2}\nvknots: {3}'''.format(self.degree, self.cntrl, self.uknots, self.vknots)
 
 class Bilinear(Srf):
     '''Constructs a NURB surface defined by 4 points to form a bilinear surface.
     Inputs:
         p11 - 3D coordinate of the corner point
-        p12 - 3D coordinate of the corner point 
-        p21 - 3D coordinate of the corner point 
-        p22 - 3D coordinate of the corner point 
+        p12 - 3D coordinate of the corner point
+        p21 - 3D coordinate of the corner point
+        p22 - 3D coordinate of the corner point
 
     The position of the corner points
 
@@ -423,28 +382,28 @@ class Bilinear(Srf):
         |    SRF       |
         |              |
         |p11        p12|
-        -------------------> u direction'''       
-    def __init__(self, p00 = [-.5,-.5], p01 = [.5, -.5], p10 = [-.5, .5], p11 = [.5, .5]):
+        -------------------> u direction'''
+    def __init__(self, p00=(-.5,-.5), p01=(.5, -.5), p10=(-.5, .5), p11=(.5, .5)):
         coefs = np.zeros((4,2,2), np.float)
         coefs[3,:,:] = np.ones((2,2), np.float)
         coefs[0:len(p00),0,0] = p00
         coefs[0:len(p01),0,1] = p01
         coefs[0:len(p10),1,0] = p10
         coefs[0:len(p11),1,1] = p11
-        Srf.__init__(self, coefs, [0.,0.,1.,1.], [0., 0., 1., 1.])
+        super().__init__(self, coefs, [0.,0.,1.,1.], [0., 0., 1., 1.])
 
 class Extrude(Srf):
     '''Construct a NURBS surface by extruding a NURBS curve along the vector (dx,dy,dz).
     INPUT:
         curve   - NURBS curve to be extruded.
         vector  - Extrusion vector.'''
-    def __init__(self, crv, vector):
-        if not isinstance(crv, Crv.Crv):
-            raise NURBSError, 'Parameter crv not derived from Crv class!'
-        coefs = np.zeros((4,crv.cntrl.shape[1],2), np.float)
-        coefs[:,:,0] = crv.cntrl
-        coefs[:,:,1] = np.dot(translate(vector), crv.cntrl)
-        Srf.__init__(self, coefs, crv.uknots, [0., 0., 1., 1.])
+    def __init__(self, curve, vector):
+        if not isinstance(curve, crv.Crv):
+            raise NURBSError('Input curve not derived from Crv class!')
+        coefs = np.zeros((4,curve.cntrl.shape[1],2), np.float)
+        coefs[:,:,0] = curve.cntrl
+        coefs[:,:,1] = np.dot(translate(vector), curve.cntrl)
+        super().__init__(self, coefs, curve.uknots, [0., 0., 1., 1.])
 
 class Revolve(Srf):
     '''Construct a surface by revolving the profile curve
@@ -454,21 +413,21 @@ class Revolve(Srf):
 
     INPUT:
 
-    crv    - NURB profile curve.
+    curve  - NURB profile curve.
     pnt    - coordinate of the point. (default: [0, 0, 0])
     vector - rotation axis. (default: [1, 0, 0])
     theta  - angle to revolve curve (default: 2*pi).'''
-    def __init__(self, crv, pnt = [0., 0., 0.], vector = [1., 0., 0.], theta = 2.*math.pi):
-        if not isinstance(crv, Crv.Crv):
-            raise NURBSError, 'Parameter crv not derived from Crv class!'
+    def __init__(self, curve, pnt=(0., 0., 0.), vector=(1., 0., 0.), theta=2.*math.pi):
+        if not isinstance(curve, crv.Crv):
+            raise NURBSError('Input curve not derived from Crv class!')
         # Translate and rotate the curve into alignment with the z-axis
         T = translate(-np.asarray(pnt, np.float))
         # Normalize vector
         vector = np.asarray(vector, np.float)
-        len = np.sqrt(np.add.reduce(vector*vector))
-        if len == 0:
-            raise ZeroDivisionError, "Can't normalize a zero-length vector"
-        vector = vector/len
+        len_ = np.sqrt(np.add.reduce(vector*vector))
+        if len_ == 0:
+            raise ZeroDivisionError("Can't normalize a zero-length vector")
+        vector = vector/len_
         if vector[0] == 0.:
             angx = 0.
         else:
@@ -482,22 +441,22 @@ class Revolve(Srf):
         else:
             angy = math.atan2(vector[1], vector[2])
         RX = rotx(angy)
-        crv.trans(np.dot(RX, np.dot(RY, T)))
-        arc = Crv.Arc(1., [0., 0., 0.], 0., theta)
+        curve.trans(np.dot(RX, np.dot(RY, T)))
+        arc = crv.Arc(1., [0., 0., 0.], 0., theta)
 
         narc = arc.cntrl.shape[1]
-        ncrv = crv.cntrl.shape[1]
+        ncrv = curve.cntrl.shape[1]
         coefs = np.zeros((4, narc, ncrv), np.float)
-        angle = np.arctan2(crv.cntrl[1,:], crv.cntrl[0,:])
-        vectmp = crv.cntrl[0:2,:]
+        angle = np.arctan2(curve.cntrl[1,:], curve.cntrl[0,:])
+        vectmp = curve.cntrl[0:2,:]
         radius = np.sqrt(np.add.reduce(vectmp*vectmp))
 
-        for i in xrange(0, ncrv):
+        for i in range(0, ncrv):
             coefs[:,:,i] = np.dot(rotz(angle[i]),
-                                       np.dot(translate((0., 0., crv.cntrl[2,i])),
-                                                   np.dot(scale((radius[i], radius[i])), arc.cntrl)))
-            coefs[3,:,i] = coefs[3,:,i] * crv.cntrl[3,i]
-        Srf.__init__(self, coefs, arc.uknots, crv.uknots)
+                                  np.dot(translate((0., 0., curve.cntrl[2,i])),
+                                         np.dot(scale((radius[i], radius[i])), arc.cntrl)))
+            coefs[3,:,i] = coefs[3,:,i] * curve.cntrl[3,i]
+        super().__init__(self, coefs, arc.uknots, curve.uknots)
         T = translate(pnt)
         RX = rotx(-angy)
         RY = roty(angx)
@@ -511,10 +470,10 @@ class Ruled(Srf):
     NOTE:
     The ruled surface is ruled along the V direction.'''
     def __init__(self, crv1, crv2):
-        if not isinstance(crv1, Crv.Crv):
-                raise NURBSError, 'Parameter crv1 not derived from Crv class!'
-        if not isinstance(crv2, Crv.Crv):
-                raise NURBSError, 'Parameter crv2 not derived from Crv class!'
+        if not isinstance(crv1, crv.Crv):
+            raise NURBSError('Parameter crv1 not derived from Crv class!')
+        if not isinstance(crv2, crv.Crv):
+            raise NURBSError('Parameter crv2 not derived from Crv class!')
         # ensure both curves have a common degree
         d = max(crv1.degree, crv2.degree)
         crv1.degelev(d - crv1.degree)
@@ -546,7 +505,7 @@ class Ruled(Srf):
         coefs = np.zeros((4, crv1.cntrl.shape[1], 2), np.float)
         coefs[:,:,0] = crv1.cntrl
         coefs[:,:,1] = crv2.cntrl
-        Srf.__init__(self, coefs, crv1.uknots, [0., 0., 1., 1.])
+        super().__init__(self, coefs, crv1.uknots, [0., 0., 1., 1.])
 
 class Coons(Srf):
     '''Construction of a bilinearly blended Coons patch.
@@ -567,14 +526,14 @@ class Coons(Srf):
          ------->-----------> u direction
                u1'''
     def __init__(self, u1, u2, v1, v2):
-        if not isinstance(u1, Crv.Crv):
-                raise NURBSError, 'Parameter u1 not derived from Crv class!'
-        if not isinstance(u2, Crv.Crv):
-                raise NURBSError, 'Parameter u2 not derived from Crv class!'
-        if not isinstance(v1, Crv.Crv):
-                raise NURBSError, 'Parameter v1 not derived from Crv class!'
-        if not isinstance(v2, Crv.Crv):
-                raise NURBSError, 'Parameter v2 not derived from Crv class!'
+        if not isinstance(u1, crv.Crv):
+            raise NURBSError('Parameter u1 not derived from Crv class!')
+        if not isinstance(u2, crv.Crv):
+            raise NURBSError('Parameter u2 not derived from Crv class!')
+        if not isinstance(v1, crv.Crv):
+            raise NURBSError('Parameter v1 not derived from Crv class!')
+        if not isinstance(v2, crv.Crv):
+            raise NURBSError('Parameter v2 not derived from Crv class!')
         r1 = Ruled(u1, u2)
         r2 = Ruled(v1, v2)
         r2.swapuv()
@@ -605,7 +564,7 @@ class Coons(Srf):
             if not np.sometrue(np.equal(k1, item)):
                 if not np.sometrue(np.equal(k2, item)):
                     if item not in k:
-                        k.append(item)        
+                        k.append(item)
         k = np.sort(np.asarray(k, np.float))
         n = k.shape[0]
         kua = np.array([], np.float)
@@ -639,7 +598,7 @@ class Coons(Srf):
             if not np.sometrue(np.equal(k1, item)):
                 if not np.sometrue(np.equal(k2, item)):
                     if item not in k:
-                        k.append(item)        
+                        k.append(item)
         k = np.sort(np.asarray(k, np.float))
         n = k.shape[0]
         kva = np.array([], np.float)
@@ -662,8 +621,8 @@ class Coons(Srf):
         coefs[1,:,:] = r1.cntrl[1,:,:] + r2.cntrl[1,:,:] - t.cntrl[1,:,:]
         coefs[2,:,:] = r1.cntrl[2,:,:] + r2.cntrl[2,:,:] - t.cntrl[2,:,:]
         coefs[3,:,:] = r1.cntrl[3,:,:] + r2.cntrl[3,:,:] - t.cntrl[3,:,:]
-        Srf.__init__(self, coefs, r1.uknots, r1.vknots)
-        
+        super().__init__(self, coefs, r1.uknots, r1.vknots)
+
 if __name__ == '__main__':
     '''cntrl = np.zeros((4,4,4), np.float)
     for u in range(4):
@@ -678,34 +637,34 @@ if __name__ == '__main__':
     knots = [0.,0.,0.,0.,1.,1.,1.,1.]
     s = Srf(cntrl,knots,knots)'''
     #s = Bilinear([0,0,0], [2,0,0], [0,1,0], [2,1,1.8])
-    c = Crv.Crv([[0,30,6,90],[0,0,50,50]],[0,0,0,0,1,1,1,1])
+    c = crv.Crv([[0,30,6,90],[0,0,50,50]],[0,0,0,0,1,1,1,1])
     s = Revolve(c)
     #s = Extrude(c,[0,0,5])
     '''cntrl = [[-50., -75., 25., 0., -25., 75., 50.],
              [25., 50., 50., 0., -50., -50., 25.]]
     knots = [0., 0., 0., .2, .4, .6, .8, 1., 1., 1.]
-    c = Crv.Crv(cntrl, knots)
+    c = crv.Crv(cntrl, knots)
     s = Extrude(c,[0,0,5])'''
-    
+
     '''pnts = [[0., 3., 4.5, 6.5, 8., 10.],
             [0., 0., 0., 0., 0., 0.],
-            [2., 2., 7., 4., 7., 9.]]   
-    crv1 = Crv.Crv(pnts, [0., 0., 0., 1./3., 0.5, 2./3., 1., 1., 1.])
-    
+            [2., 2., 7., 4., 7., 9.]]
+    crv1 = crv.Crv(pnts, [0., 0., 0., 1./3., 0.5, 2./3., 1., 1., 1.])
+
     pnts= [[0., 3., 5., 8., 10.],
            [10., 10., 10., 10., 10.],
            [3., 5., 8., 6., 10.]]
-    crv2 = Crv.Crv(pnts, [0., 0., 0., 1./3., 2./3., 1., 1., 1.])
-    
+    crv2 = crv.Crv(pnts, [0., 0., 0., 1./3., 2./3., 1., 1., 1.])
+
     pnts= [[0.,0., 0., 0.],
            [0., 3., 8., 10.],
            [2., 0., 5., 3.]]
-    crv3 = Crv.Crv(pnts, [0., 0., 0., 0.5, 1., 1., 1.])
-    
+    crv3 = crv.Crv(pnts, [0., 0., 0., 0.5, 1., 1., 1.])
+
     pnts= [[10., 10., 10., 10., 10.],
            [0., 3., 5., 8., 10.],
            [9., 7., 7., 10., 10.]]
-    crv4 = Crv.Crv(pnts, [0., 0., 0., 0.25, 0.75, 1., 1., 1.])
-    
+    crv4 = crv.Crv(pnts, [0., 0., 0., 0.25, 0.75, 1., 1., 1.])
+
     s = Coons(crv1, crv2, crv3, crv4)'''
     s.plot()

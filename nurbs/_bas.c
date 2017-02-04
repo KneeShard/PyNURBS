@@ -27,7 +27,7 @@ static double min(double a, double b)
   }
 }
 
-static char _Bas_module__doc__[] = "_Bas module. Version 0.1\n\
+static char _bas_module__doc__[] = "_bas module. Version 0.1\n\
 \n\
 This module implements low level NURBS functions.\n\
 \n";
@@ -98,7 +98,7 @@ static double _bincoeff(int n, int k)
   return floor(0.5+exp(_factln(n)-_factln(k)-_factln(n-k)));
 }
 
-static PyObject * _Bas_bincoeff(PyObject *self, PyObject *args)
+static PyObject * _bas_bincoeff(PyObject *self, PyObject *args)
 {
     int n, k;
     double ret;
@@ -164,7 +164,7 @@ static int _findspan(int n, int p, double u, double *U)
   return(mid);
 }
 
-static PyObject * _Bas_findspan(PyObject *self, PyObject *args)
+static PyObject * _bas_findspan(PyObject *self, PyObject *args)
 {
     int n, p, ret;
     double u;
@@ -246,7 +246,7 @@ static void _basisfuns(int i, double u, int p, double *U, double *N)
   free(right);
 }
 
-static PyObject * _Bas_basisfuns(PyObject *self, PyObject *args)
+static PyObject * _bas_basisfuns(PyObject *self, PyObject *args)
 {
     int i, p;
     double u;
@@ -318,7 +318,7 @@ static void _bspeval(int d, double *ctrl, int mc, int nc, double *k, int nk, dou
   free(N);
 }
 
-static PyObject * _Bas_bspeval(PyObject *self, PyObject *args)
+static PyObject * _bas_bspeval(PyObject *self, PyObject *args)
 {
     int d;
     npy_intp dim[2], mc, nc, nu;
@@ -453,7 +453,7 @@ static void _dersbasisfuns(int d, double *k, int nk, double u, int s, int n, dou
     free(right);
 }
 
-static PyObject * _Bas_dersbasisfuns(PyObject *self, PyObject *args)
+static PyObject * _bas_dersbasisfuns(PyObject *self, PyObject *args)
 {
     int d, s, nk, n;
     double u;
@@ -532,7 +532,7 @@ static void _bspdeval(int d, double *c, int mc, int nc, double *k, int nk,
     PyArray_free(dN);
 }
 
-static PyObject * _Bas_bspdeval(PyObject *self, PyObject *args)
+static PyObject * _bas_bspdeval(PyObject *self, PyObject *args)
 {
     int d, n;
     npy_intp dim[2], mc, nc;
@@ -634,7 +634,7 @@ static void _bspkntins(int d, double *ctrl, int mc, int nc, double *k, int nk,
     }
 }
 
-static PyObject * _Bas_bspkntins(PyObject *self, PyObject *args)
+static PyObject * _bas_bspkntins(PyObject *self, PyObject *args)
 {
     int d;
     npy_intp mc, nc, nk, nu, dim[2];
@@ -903,7 +903,7 @@ static void _bspdegelev(int d, double *ctrl, int mc, int nc, double *k, int nk,
   free(alfs);
 }
 
-static PyObject * _Bas_bspdegelev(PyObject *self, PyObject *args)
+static PyObject * _bas_bspdegelev(PyObject *self, PyObject *args)
 {
     int d, t, nh;
     npy_intp mc, nc, nk, dim[2];
@@ -1023,7 +1023,7 @@ static void _bspbezdecom(int d, double *ctrl, int mc, int nc, double *k, int nk,
   free(alfs);
 }
 
-static PyObject * _Bas_bspbezdecom(PyObject *self, PyObject *args)
+static PyObject * _bas_bspbezdecom(PyObject *self, PyObject *args)
 {
     int i, b, c, d, m;
     npy_intp mc, nc, nk, dim[2];
@@ -1068,25 +1068,32 @@ static PyObject * _Bas_bspbezdecom(PyObject *self, PyObject *args)
     return Py_BuildValue("O", ic);
 }
 
-static PyMethodDef _Bas_methods[] =
+static PyMethodDef _bas_methods[] =
 {
-    {"bincoeff", _Bas_bincoeff, METH_VARARGS, bincoeff__doc__},
-    {"bspeval", _Bas_bspeval, METH_VARARGS, bspeval__doc__},
-    {"bspdeval", _Bas_bspdeval, METH_VARARGS, bspdeval__doc__},
-    {"bspkntins", _Bas_bspkntins, METH_VARARGS, bspkntins__doc__},
-    {"bspdegelev", _Bas_bspdegelev, METH_VARARGS, bspdegelev__doc__},
-    {"bspbezdecom", _Bas_bspbezdecom, METH_VARARGS, bspbezdecom__doc__},
+    {"bincoeff", _bas_bincoeff, METH_VARARGS, bincoeff__doc__},
+    {"bspeval", _bas_bspeval, METH_VARARGS, bspeval__doc__},
+    {"bspdeval", _bas_bspdeval, METH_VARARGS, bspdeval__doc__},
+    {"bspkntins", _bas_bspkntins, METH_VARARGS, bspkntins__doc__},
+    {"bspdegelev", _bas_bspdegelev, METH_VARARGS, bspdegelev__doc__},
+    {"bspbezdecom", _bas_bspbezdecom, METH_VARARGS, bspbezdecom__doc__},
     // se:
-    {"basisfuns", _Bas_basisfuns, METH_VARARGS, basisfuns__doc__},
-    {"dersbasisfuns", _Bas_dersbasisfuns, METH_VARARGS, dersbasisfuns__doc__},
-    {"findspan", _Bas_findspan, METH_VARARGS, findspan__doc__},
+    {"basisfuns", _bas_basisfuns, METH_VARARGS, basisfuns__doc__},
+    {"dersbasisfuns", _bas_dersbasisfuns, METH_VARARGS, dersbasisfuns__doc__},
+    {"findspan", _bas_findspan, METH_VARARGS, findspan__doc__},
     {NULL, NULL}
 };
 
-PyMODINIT_FUNC init_Bas(void)
+static struct PyModuleDef _bas = {
+    PyModuleDef_HEAD_INIT,
+    "nurbs",
+    _bas_module__doc__,
+    -1,
+    _bas_methods
+};
+
+PyMODINIT_FUNC PyInit__bas(void)
 {
-    PyObject *m;
-    m = Py_InitModule3("_Bas", _Bas_methods, _Bas_module__doc__);
     import_array();
+    return PyModule_Create(&_bas);
 }
     

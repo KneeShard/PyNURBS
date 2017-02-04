@@ -1,0 +1,8 @@
+*.py text eol=crlf
+*.c  text eol=crlf
+
+.gitattributes text eol=crlf
+.gitignore     text eol=crlf
+README*        text eol=crlf
+PKG-INFO       text eol=crlf
+LICENCE        text eol=crlf

@@ -1,17 +1,13 @@
 import math
 
-dependencies = '''This module requires:
-	Numeric Python
-'''
-
 class NURBSError(Exception):
     """Base class for NURBS errors."""
     pass
 
 try:
     import numpy as np
-except ImportError, value:
-    print dependencies
+except ImportError as value:
+    print('This module requires NumPy')
     raise
 
 def uniformknots(cntrlpts, degree):
